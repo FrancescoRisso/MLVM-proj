@@ -7,7 +7,40 @@ from zipfile import ZipFile
 
 import requests
 
+from dataloader.split import Split
 from settings import Settings
+
+
+def is_dataset_ok() -> bool:
+    """
+    Checks if the dataset is reasonably correct.
+
+    ---------------------------------------------------------------------
+    In particular, the dataset folder is considered correct if:
+    - it is present
+    - it contains the required metadata files
+    - it contains the 3 split folders (`./train`, `./validation` and
+        `./test`)
+    - each of the split folders has at least a file inside
+
+    ---------------------------------------------------------------------
+    OUTPUT
+    ------
+    Whether the dataset folder is considered correct or not
+    """
+    try:
+        assert os.path.isdir(Settings.dataset_folder)
+
+        for file in Settings.metadata_files_to_keep:
+            assert os.path.exists(os.path.join(Settings.dataset_folder, file))
+
+        for split in Split.list():
+            assert os.path.isdir(os.path.join(Settings.dataset_folder, split))
+            assert len(os.listdir(os.path.join(Settings.dataset_folder, split))) > 0
+
+        return True
+    except AssertionError:
+        return False
 
 
 def download_dataset():
@@ -79,7 +112,7 @@ def _normalize_str(s: str) -> str:
     - spaces after a dot are removed
     - one or more consecutive characters among the following are replaced
         by a single underscore:
-        - \-
+        - \\-
         - (space)
         - ,
         - ;
@@ -154,13 +187,12 @@ def _reorganize_dataset() -> None:
     - moves all the midi files to the corresponding folder, based on the
         split suggested by the dataset.
         Each file is also renamed in a more meaningful way:
-        _\<composer\>-\<title\>-\<year\>-v<instance #>.midi_
+        _\\<composer\\>-\\<title\\>-\\<year\\>-v\\<instance #\\>.midi_
     - moves all the metadata files to the dataset folder
     - removes the leftover folders from the downloaded structure
     """
-    os.mkdir(os.path.join(Settings.dataset_folder, "train"))
-    os.mkdir(os.path.join(Settings.dataset_folder, "validation"))
-    os.mkdir(os.path.join(Settings.dataset_folder, "test"))
+    for split in Split.list():
+        os.mkdir(os.path.join(Settings.dataset_folder, split))
 
     download_base_path = os.path.join(Settings.dataset_folder, "maestro-v3.0.0")
     csv_path = os.path.join(download_base_path, "maestro-v3.0.0.csv")

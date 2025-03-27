@@ -1,10 +1,11 @@
 from dataloader.dataloader import Dataloader
+from dataloader.split import Split
 
 # WiP file
 
 
 def main():
-    Dataloader()
+    Dataloader(Split.TRAIN)
     pass
 
 
