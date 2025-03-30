@@ -1,212 +1,74 @@
-import csv
-import io
 import os
-import re
-from shutil import rmtree
-from zipfile import ZipFile
 
-import requests
+from mido import MidiFile  # type: ignore
 
+from dataloader.dataset_folder_management import download_dataset, is_dataset_ok
+from dataloader.Song import Song
 from dataloader.split import Split
 from settings import Settings
 
 
-def is_dataset_ok() -> bool:
-    """
-    Checks if the dataset is reasonably correct.
+class DataSet:
+    def __init__(self, split: Split, duration: None | float | tuple[float, float]):
+        """
+        Creates a new dataset for a specific split.
 
-    ---------------------------------------------------------------------
-    In particular, the dataset folder is considered correct if:
-    - it is present
-    - it contains the required metadata files
-    - it contains the 3 split folders (`./train`, `./validation` and
-        `./test`)
-    - each of the split folders has at least a file inside
+        No transformation is available, except for a random time crop
 
-    ---------------------------------------------------------------------
-    OUTPUT
-    ------
-    Whether the dataset folder is considered correct or not
-    """
-    try:
-        assert os.path.isdir(Settings.dataset_folder)
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - split: which split the dataset should work on
+        - duration: how long the crops should be, in one of the following
+            formats:
+            - None: don't crop the songs, return them fully every time
+            - num: create random crops of exactly num seconds (equivalent to
+                the previous one if num > song length)
+            - (min, max): select every time a random duration between min and
+                max, then select a random crop of that duration (max is
+                cropped to the song length, and the option is equivalent to
+                None if also min is greater than the song length)
+        """
 
-        for file in Settings.metadata_files_to_keep:
-            assert os.path.exists(os.path.join(Settings.dataset_folder, file))
+        if not is_dataset_ok():
+            download_dataset()
 
-        for split in Split.list():
-            assert os.path.isdir(os.path.join(Settings.dataset_folder, split))
-            assert len(os.listdir(os.path.join(Settings.dataset_folder, split))) > 0
+        self.__duration = duration
 
-        return True
-    except AssertionError:
-        return False
+        folder_path = os.path.join(Settings.dataset_folder, split.value)
+        self.__data = [
+            os.path.join(folder_path, file) for file in os.listdir(folder_path)
+        ]
 
+    def __len__(self) -> int:
+        """
+        Returns the number of songs in the dataset
 
-def download_dataset():
-    """!
-    @brief Downloads and sets up the dataset
-    """
-    _clean_folder()
-    zip_folder = _download_zip()
-    _extract_zip(zip_folder)
-    _reorganize_dataset()
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The number of songs
+        """
+        return len(self.__data)
 
+    def __getitem__(self, index: int) -> MidiFile:
+        """
+        Returns the index-th song in the dataset
 
-def _clean_folder() -> None:
-    """
-    Removes everyhing from the dataset folder
-    """
-    print(f"Cleaning folder {Settings.dataset_folder}... ", end="")
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - index: the index to fetch
 
-    if os.path.isdir(Settings.dataset_folder):
-        rmtree(Settings.dataset_folder)
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The song, as midi pattern
+        """
+        song = Song.from_path(self.__data[index])
 
-    print("Done!")
+        crop_region = song.choose_cut_boundary(self.__duration)
+        if crop_region is not None:
+            song = song.cut(crop_region[0], crop_region[1])
 
-
-def _download_zip() -> ZipFile:
-    """
-    Downloads the dataset as a zipped file
-
-    ---------------------------------------------------------------------
-    OUTPUT
-    ------
-    The downloaded zip folder
-    """
-    print("Downloading dataset... ", end="")
-
-    resp = requests.get(
-        "https://storage.googleapis.com/magentadata/datasets/maestro/v3.0.0/maestro-v3.0.0-midi.zip"
-    )
-
-    print("Done!")
-
-    return ZipFile(io.BytesIO(resp.content))
-
-
-def _extract_zip(zip_folder: ZipFile) -> None:
-    """
-    Extracts the zipped folder to the dataset folder (in the original
-    folder structure as downloaded)
-
-    ---------------------------------------------------------------------
-    PARAMETERS
-    ----------
-    - zip_folder: the downloaded zipped folder
-    """
-    print("Extracting zip folder... ", end="")
-
-    zip_folder.extractall(Settings.dataset_folder)
-
-    print("Done!")
-
-
-def _normalize_str(s: str) -> str:
-    """
-    Replaces various characters in a string, to make it both
-    "path-friendly" and in line with the rest of the file name.
-
-    ---------------------------------------------------------------------
-    In particular:
-    - spaces after a dot are removed
-    - one or more consecutive characters among the following are replaced
-        by a single underscore:
-        - \\-
-        - (space)
-        - ,
-        - ;
-        - :
-        - \\
-        - /
-
-    ---------------------------------------------------------------------
-    PARAMETERS
-    ----------
-    - s: the string to convert
-
-    ---------------------------------------------------------------------
-    OUTPUT
-    ------
-    The converted string
-    """
-    # rm spaces after dot
-    s = re.sub(r"\. *", ".", s)
-
-    # (punctuation/spaces/dash/apostrophe/slashes) ==> (underscore)
-    s = re.sub(r"[,;: -'\\/]*", "_", s)
-
-    # rm quotes
-    s = re.sub(r"[\"“”]", "", s)
-    return s
-
-
-def _move_song(
-    song: dict[str, str], download_base_path: str, num_versions: dict[str, int]
-) -> None:
-    """
-    Moves a song to the correct split folder, while also making the file
-    name more meaningful
-
-    ---------------------------------------------------------------------
-    PARAMETERS
-    ----------
-    - song: the song details, formatted as a dict from the csv
-    - download_base_path: the path where all songs have been downloaded
-    - num_versions: a counter of how many instances were found for a
-        specific (composer, title, year)
-    """
-
-    fname = _normalize_str(song["canonical_composer"])
-    fname = f"{fname}-{_normalize_str(song["canonical_title"])}"
-    fname = f"{fname}-{_normalize_str(song["year"])}"
-    lowercase_fname = fname.lower()
-
-    if lowercase_fname not in num_versions.keys():
-        num_versions[lowercase_fname] = 1
-    else:
-        num_versions[lowercase_fname] += 1
-
-    fname = f"{fname}-v{num_versions[lowercase_fname]}.midi"
-
-    os.rename(
-        os.path.join(download_base_path, song["midi_filename"]),
-        os.path.join(Settings.dataset_folder, song["split"], fname),
-    )
-
-
-def _reorganize_dataset() -> None:
-    """
-    Transforms the dataset folder from the downloaded folder structure to
-    the desired one.
-
-    ---------------------------------------------------------------------
-    In particular:
-    - creates folders `./train`, `./validation` and `./test` inside the
-        dataset folder
-    - moves all the midi files to the corresponding folder, based on the
-        split suggested by the dataset.
-        Each file is also renamed in a more meaningful way:
-        _\\<composer\\>-\\<title\\>-\\<year\\>-v\\<instance #\\>.midi_
-    - moves all the metadata files to the dataset folder
-    - removes the leftover folders from the downloaded structure
-    """
-    for split in Split.list():
-        os.mkdir(os.path.join(Settings.dataset_folder, split))
-
-    download_base_path = os.path.join(Settings.dataset_folder, "maestro-v3.0.0")
-    csv_path = os.path.join(download_base_path, "maestro-v3.0.0.csv")
-    num_versions: dict[str, int] = {}
-
-    with open(csv_path, "r", newline="", encoding="utf-8") as csv_file:
-        csv_reader = csv.DictReader(csv_file, delimiter=",", quotechar='"')
-        for song in csv_reader:
-            _move_song(song, download_base_path, num_versions)
-
-    for file in Settings.metadata_files_to_keep:
-        os.rename(
-            os.path.join(download_base_path, file),
-            os.path.join(Settings.dataset_folder, file),
-        )
-
-    rmtree(download_base_path)
+        return song.get_midi()

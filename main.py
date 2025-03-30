@@ -1,11 +1,12 @@
-from dataloader.dataloader import Dataloader
+from dataloader.dataset import DataSet
 from dataloader.split import Split
 
 # WiP file
 
 
 def main():
-    Dataloader(Split.TRAIN)
+    dataset = DataSet(Split.TRAIN, (15, 20))
+    dataset[-1].save("tmp.midi")
     pass
 
 
