@@ -1,6 +1,13 @@
+import os
+
+# automatic stuff, the actual settings are in the class Settings below
+cur_dir = os.path.dirname(__file__)
+audio_font_folder = os.path.join(cur_dir, "audio-fonts")
+
+
 class Settings:
     # folder names
-    dataset_folder = ".\\data"
+    dataset_folder = "data"
 
     train_folder = "train"
     validation_folder = "validation"
@@ -13,3 +20,8 @@ class Settings:
         "maestro-v3.0.0.csv",
         "maestro-v3.0.0.json",
     ]
+
+    # audio file generation
+    audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
+    tmp_midi_file = "tmp.midi"
+    tmp_audio_file = "tmp.wav"

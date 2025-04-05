@@ -1,5 +1,7 @@
 import os
+import platform
 
+import numpy as np
 from mido import MidiFile  # type: ignore
 
 from dataloader.dataset_folder_management import download_dataset, is_dataset_ok
@@ -29,6 +31,7 @@ class DataSet:
                 cropped to the song length, and the option is equivalent to
                 None if also min is greater than the song length)
         """
+        self.__check_os()
 
         if not is_dataset_ok():
             download_dataset()
@@ -51,7 +54,7 @@ class DataSet:
         """
         return len(self.__data)
 
-    def __getitem__(self, index: int) -> MidiFile:
+    def __getitem__(self, index: int) -> tuple[MidiFile, tuple[int, np.ndarray]]:
         """
         Returns the index-th song in the dataset
 
@@ -63,7 +66,11 @@ class DataSet:
         ---------------------------------------------------------------------
         OUTPUT
         ------
-        The song, as midi pattern
+        The song, as tuple composed of:
+        - midi pattern
+        - audio file, represented as a tuple with:
+            - the sample rate
+            - the actual data, as a np array
         """
         song = Song.from_path(self.__data[index])
 
@@ -71,4 +78,19 @@ class DataSet:
         if crop_region is not None:
             song = song.cut(crop_region[0], crop_region[1])
 
-        return song.get_midi()
+        return song.get_midi(), song.to_wav()
+
+    def __check_os(self) -> None:
+        """
+        Checks the operating system:
+        - on Linux, no problem
+        - on MacOS, a warning is raised, since the midi to audio synthesizer
+            was not tested there
+        - on Windows, an error is printed, and the program stops, since the
+            synthesizer does not work
+        """
+        if platform.system() == "Windows":
+            print("ERROR: the synthesizer does not work on Windows")
+            exit(-1)
+        elif platform.system() == "Darwin":
+            print("WARNING: the synthesizer was not tested on MacOS")

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import os
 import random
 from typing import Iterable
 
+import numpy as np
 from mido import MidiFile, MidiTrack, second2tick  # type: ignore
 from mido.messages import BaseMessage, Message  # type: ignore
 from mido.midifiles.meta import MetaMessage  # type: ignore
+from scipy.io import wavfile  # type: ignore
+
+from libs.midi2audio import FluidSynth  # type: ignore
+from settings import Settings  # type: ignore
 
 
 class Song:
@@ -327,3 +333,44 @@ class Song:
 
         start = random.uniform(0, self.__midi.length - duration)
         return start, start + duration
+
+    def to_wav(self, verbose: bool = False) -> tuple[int, np.ndarray]:
+        """
+        Create a wav representation of the song
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - verbose: if the output of the synthesizer should be printed or not
+            (default: False)
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        A tuple containing:
+        - the sample rate of the song
+        - the actual data, as a np array
+
+        If the synthesizer (fluidsynth) is not installed, the program crashes
+        instructing the user to install it.
+        """
+        try:
+            self.save(Settings.tmp_midi_file)
+
+            synthesizer = FluidSynth(sound_font=Settings.audio_font_path)
+            synthesizer.midi_to_audio(
+                Settings.tmp_midi_file, Settings.tmp_audio_file, verbose
+            )
+
+            samplerate, data = wavfile.read(Settings.tmp_audio_file)
+
+            os.remove(Settings.tmp_midi_file)
+            os.remove(Settings.tmp_audio_file)
+
+            return samplerate, data
+
+        except FileNotFoundError:
+            os.remove(Settings.tmp_midi_file)
+            print("Error: fluidsynth may not be installed")
+            print('Please install it with "sudo apt install fluidsynth"')
+            exit(-1)

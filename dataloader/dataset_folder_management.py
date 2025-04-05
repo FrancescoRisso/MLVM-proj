@@ -158,8 +158,8 @@ def _move_song(
     """
 
     fname = _normalize_str(song["canonical_composer"])
-    fname = f"{fname}-{_normalize_str(song["canonical_title"])}"
-    fname = f"{fname}-{_normalize_str(song["year"])}"
+    fname = f"{fname}-{_normalize_str(song['canonical_title'])}"
+    fname = f"{fname}-{_normalize_str(song['year'])}"
     lowercase_fname = fname.lower()
 
     if lowercase_fname not in num_versions.keys():

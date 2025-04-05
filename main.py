@@ -6,8 +6,7 @@ from dataloader.split import Split
 
 def main():
     dataset = DataSet(Split.TRAIN, (15, 20))
-    dataset[-1].save("tmp.midi")
-    pass
+    midi, (sample_rate, audio) = dataset[-1]
 
 
 if __name__ == "__main__":
