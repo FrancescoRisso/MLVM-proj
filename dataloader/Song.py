@@ -10,7 +10,7 @@ from mido.messages import BaseMessage, Message  # type: ignore
 from mido.midifiles.meta import MetaMessage  # type: ignore
 from scipy.io import wavfile  # type: ignore
 
-from libs.midi2audio import FluidSynth  # type: ignore
+from dataloader.MidiToWav import midi_to_wav
 from settings import Settings  # type: ignore
 
 
@@ -357,9 +357,10 @@ class Song:
         try:
             self.save(Settings.tmp_midi_file)
 
-            synthesizer = FluidSynth(sound_font=Settings.audio_font_path)
-            synthesizer.midi_to_audio(
-                Settings.tmp_midi_file, Settings.tmp_audio_file, verbose
+            midi_to_wav(
+                Settings.tmp_midi_file,
+                Settings.tmp_audio_file,
+                Settings.audio_font_path,
             )
 
             samplerate, data = wavfile.read(Settings.tmp_audio_file)
