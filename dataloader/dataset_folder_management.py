@@ -134,7 +134,7 @@ def _normalize_str(s: str) -> str:
     s = re.sub(r"\. *", ".", s)
 
     # (punctuation/spaces/dash/apostrophe/slashes) ==> (underscore)
-    s = re.sub(r"[,;: -'\\/]*", "_", s)
+    s = re.sub(r"[,;: -'\\/]+", "_", s)
 
     # rm quotes
     s = re.sub(r"[\"“”]", "", s)
