@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Dataset 
+data/
+
+# Audio fonts (since they are big)
+audio-fonts/*
