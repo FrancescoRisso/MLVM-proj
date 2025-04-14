@@ -3,76 +3,67 @@ import numpy as np
 import librosa
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
+
+# ---------- CNN Blocks ----------
 """
-This function computes the Constant-Q Transform (CQT) of an audio file.
 Args:
-    wav_file (str): Path to the audio file.
-    sr (int): Sample rate for loading the audio file.
-    hop_length (int): Hop length for the CQT.
-    n_bins (int): Number of bins for the CQT.
-Returns:
-    tf.Tensor: CQT tensor of shape (n_bins, time).
+    channels: list of channels for each layer
+    ks: kernel size
+    s: stride
+    p: padding
 """
-def constant_q_transform(wav_file: str, sr: int, hop_length: int, n_bins: int) -> tf.Tensor:
-    # Load the audio file
-    y, sr = librosa.load(wav_file, sr=sr)
-
-    # Compute the Constant-Q Transform
-    cqt = librosa.cqt(y, sr=sr, hop_length=hop_length, n_bins=n_bins)
-
-    # Convert to TensorFlow tensor
-    cqt_tensor = tf.convert_to_tensor(np.abs(cqt), dtype=tf.float32)
-
-    return cqt_tensor
-
-"""
-Performs harmonic stacking on a CQT tensor.
-Args:
-    cqt_tensor (tf.Tensor): CQT tensor of shape (n_bins, time)
-    shifts (list[int]): List of harmonic shifts in semitones (e.g., [-12, 0, +12])
-Returns:
-    tf.Tensor: Stacked tensor of shape (len(shifts), n_bins, time)
-"""
-def harmonic_stacking(cqt_tensor: tf.Tensor, shifts: list[int]) -> tf.Tensor:
-    stacked = []
-    cqt_np = cqt_tensor.numpy()
-
-    for shift in shifts:
-        shifted = np.roll(cqt_np, shift, axis=0)
-
-        # Se rolla verso l’alto o il basso, zeriamo le bande "wrap-around"
-        if shift > 0:
-            shifted[:shift, :] = 0
-        elif shift < 0:
-            shifted[shift:, :] = 0
-
-        stacked.append(shifted)
-
-    stacked_tensor = tf.convert_to_tensor(np.stack(stacked, axis=0), dtype=tf.float32)
-    return stacked_tensor
-
-def get_conv_net(channels: list[int], ks: tuple[int, int], s: tuple[int, int], p: tuple[int, int]) -> nn.Module:
+def get_conv_net(channels, ks, s, p):
     layers = []
     for i in range(len(channels) - 1):
-        layers.append(nn.Conv2d(in_channels=channels[i], out_channels=channels[i+1],
-                                kernel_size=ks, stride=s, padding=p))
+        layers.append(nn.Conv2d(channels[i], channels[i+1], kernel_size=ks, stride=s, padding=p))
         layers.append(nn.BatchNorm2d(channels[i+1]))
         layers.append(nn.ReLU())
     return nn.Sequential(*layers)
 
 
 
-def model(stacked_cqt: tf.Tensor) -> torch.Tensor:
-    # Convert TF tensor to PyTorch and reshape
-    spectrogram = torch.tensor(stacked_cqt.numpy(), dtype=torch.float32).unsqueeze(0)  # (1, C, H, W)
+# ---------- Full Model ----------
+class HarmonicCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Yp branch
+        self.block_a1 = get_conv_net([3, 16], ks=(5, 5), s=(1, 1), p=(2, 2))
+        self.block_a2 = get_conv_net([16, 8], ks=(3, 39), s=(1, 1), p=(1, 19))  # keep time dim
+        self.conv_a3 = nn.Conv2d(8, 1, kernel_size=(5, 5), padding=(2, 2))
+        self.out_yp = nn.Sigmoid()
 
-    # Convolutional network
-    conv1 = get_conv_net([1, 16], ks=(5, 5), s=(1, 1), p=(1, 1))
-    conv2 = get_conv_net([16, 8], ks=(3, 39), s=(1, 1), p=(1, 1))
-    conv3 = nn.Conv2d(in_channels=8, out_channels=1, kernel_size=(5, 5), stride=(1, 1), padding=(1, 1))
+        # Yo branch
+        self.block_b1 = get_conv_net([3, 32], ks=(5, 5), s=(1, 3), p=(2, 2))
+        self.conv_b2 = nn.Conv2d(32, 1, kernel_size=(3, 3), padding=(1, 1))
+        self.out_yo = nn.Sigmoid()
 
-    conv_net = nn.Sequential(conv1, conv2, conv3)
+        # Yn branch
+        self.conv_c1 = nn.Conv2d(9, 1, kernel_size=(7, 3), padding=(3, 1))  # assuming concat across channel
+        self.relu_c2 = nn.ReLU()
+        self.conv_c3 = nn.Conv2d(1, 32, kernel_size=(7, 7), stride=(1, 3), padding=(3, 3))
+        self.conv_c4 = nn.Conv2d(32, 1, kernel_size=(7, 3), padding=(3, 1))
+        self.out_yn = nn.Sigmoid()
 
-    output = conv_net(spectrogram)
-    return output
+
+    # x: (1, 3, H, W)
+    def forward(self, x):
+        # Yp branch
+        xa = self.block_a1(x)
+        xa = self.block_a2(xa)
+        yp = self.out_yp(self.conv_a3(xa))
+
+        # Yo branch
+        xb = self.block_b1(x)
+        yo = self.out_yo(self.conv_b2(xb))
+
+        # Concatenate along channel dimension
+        concat = torch.cat([xa, xb], dim=1)  # assuming same spatial dims
+
+        # Yn branch
+        yn = self.relu_c2(self.conv_c1(concat))
+        yn = self.conv_c3(yn)
+        yn = self.out_yn(self.conv_c4(yn))
+
+        return yo, yp, yn
