@@ -25,3 +25,10 @@ class Settings:
     audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
+
+    # model settings
+    wav_path = ""       # TODO: Pick paths from dataset
+    sr = 16000
+    hop_length = 256
+    n_bins = 84
+    harmonic_shifts = [-12, 0, 12]
