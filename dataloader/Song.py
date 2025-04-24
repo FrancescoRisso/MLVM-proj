@@ -4,11 +4,11 @@ import os
 import random
 from typing import Iterable
 
+import librosa
 import numpy as np
 from mido import MidiFile, MidiTrack, second2tick  # type: ignore
 from mido.messages import BaseMessage, Message  # type: ignore
 from mido.midifiles.meta import MetaMessage  # type: ignore
-from scipy.io import wavfile  # type: ignore
 
 from dataloader.MidiToWav import midi_to_wav
 from settings import Settings  # type: ignore
@@ -361,14 +361,15 @@ class Song:
                 Settings.tmp_midi_file,
                 Settings.tmp_audio_file,
                 Settings.audio_font_path,
+                sample_rate=Settings.sample_rate
             )
 
-            samplerate, data = wavfile.read(Settings.tmp_audio_file)
+            y, sr = librosa.load(Settings.tmp_audio_file, sr=Settings.sample_rate)
 
             os.remove(Settings.tmp_midi_file)
             os.remove(Settings.tmp_audio_file)
 
-            return samplerate, data
+            return sr, y
 
         except FileNotFoundError:
             os.remove(Settings.tmp_midi_file)

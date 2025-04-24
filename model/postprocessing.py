@@ -1,9 +1,4 @@
 import pretty_midi
-import torch
-from model.preprocessing import constant_q_transform, harmonic_stacking
-from model.model import HarmonicCNN
-from settings import Settings
-
 
 """
     Converts onset, pitch, and note posteriorgrams to a MIDI file.
@@ -64,29 +59,8 @@ def posteriorgrams_to_midi(Yo, Yp, Yn, threshold=0.5, frame_rate=100, velocity=1
         return midi
 
 
-def postprocess():
-    # Hyperparameters
-    wav_path = Settings.wav_path
-    sr = Settings.sr
-    hop_length = Settings.hop_length
-    n_bins = Settings.n_bins
-    harmonic_shifts = Settings.harmonic_shifts
-
-    # Preprocessing
-    cqt = constant_q_transform(wav_path, sr, hop_length, n_bins)
-    stacked = harmonic_stacking(cqt, harmonic_shifts)
-
-    # Model inference
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    net = HarmonicCNN().to(device)
-    input_tensor = torch.tensor(stacked).unsqueeze(0).float().to(device)    # Add batch dimension
-    yo, yp, yn = net(input_tensor)
+def postprocess(yo, yp, yn):
     yo, yp, yn = [x.squeeze().detach().cpu().numpy() for x in (yo, yp, yn)]     # Remove batch dimension
-
-    # Postprocessing
     midi = posteriorgrams_to_midi(yo, yp, yn, threshold=0.5, frame_rate=100)
-    """
-    midi.write("output.mid")        # Save the MIDI file
-    """
 
     return midi

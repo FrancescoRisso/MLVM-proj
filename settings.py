@@ -1,4 +1,5 @@
 import os
+import torch
 
 # automatic stuff, the actual settings are in the class Settings below
 cur_dir = os.path.dirname(__file__)
@@ -22,13 +23,13 @@ class Settings:
     ]
 
     # audio file generation
+    sample_rate = 44100
     audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
 
     # model settings
-    wav_path = ""       # TODO: Pick paths from dataset
-    sr = 16000
     hop_length = 256
     n_bins = 84
     harmonic_shifts = [-12, 0, 12]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

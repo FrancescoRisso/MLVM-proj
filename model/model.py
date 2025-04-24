@@ -1,9 +1,9 @@
-import tensorflow as tf
-import numpy as np
-import librosa
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from model.postprocessing import postprocess
+from model.preprocessing import preprocess
 
 
 # ---------- CNN Blocks ----------
@@ -36,34 +36,32 @@ class HarmonicCNN(nn.Module):
 
         # Yo branch
         self.block_b1 = get_conv_net([3, 32], ks=(5, 5), s=(1, 3), p=(2, 2))
-        self.conv_b2 = nn.Conv2d(32, 1, kernel_size=(3, 3), padding=(1, 1))
+        self.conv_b2 = nn.Conv2d(33, 1, kernel_size=(3, 3), padding=(1, 1))
         self.out_yo = nn.Sigmoid()
 
         # Yn branch
-        self.conv_c1 = nn.Conv2d(9, 1, kernel_size=(7, 3), padding=(3, 1))  # assuming concat across channel
+        self.conv_c1 = nn.Conv2d(1, 32, kernel_size=(7, 7), stride=(1, 3), padding=(3, 3))  # assuming concat across channel
         self.relu_c2 = nn.ReLU()
-        self.conv_c3 = nn.Conv2d(1, 32, kernel_size=(7, 7), stride=(1, 3), padding=(3, 3))
-        self.conv_c4 = nn.Conv2d(32, 1, kernel_size=(7, 3), padding=(3, 1))
+        self.conv_c3 = nn.Conv2d(32, 1, kernel_size=(7, 3), padding=(3, 1))
         self.out_yn = nn.Sigmoid()
 
 
     # x: (1, 3, H, W)
     def forward(self, x):
+        x = preprocess(x)  # Preprocess the input
+
         # Yp branch
         xa = self.block_a1(x)
         xa = self.block_a2(xa)
         yp = self.out_yp(self.conv_a3(xa))
 
+        # Yn branch
+        yn = self.relu_c2(self.conv_c1(yp))
+        yn = self.out_yn(self.conv_c3(yn))
+           
         # Yo branch
         xb = self.block_b1(x)
-        yo = self.out_yo(self.conv_b2(xb))
+        concat = torch.cat([xb,yn], dim=1)  # assuming same spatial dims
+        yo = self.out_yo(self.conv_b2(concat))
 
-        # Concatenate along channel dimension
-        concat = torch.cat([xa, xb], dim=1)  # assuming same spatial dims
-
-        # Yn branch
-        yn = self.relu_c2(self.conv_c1(concat))
-        yn = self.conv_c3(yn)
-        yn = self.out_yn(self.conv_c4(yn))
-
-        return yo, yp, yn
+        return (yo, yp, yn), postprocess(yo, yp, yn)
