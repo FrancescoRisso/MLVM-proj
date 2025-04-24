@@ -369,7 +369,7 @@ class Song:
             os.remove(Settings.tmp_midi_file)
             os.remove(Settings.tmp_audio_file)
 
-            return sr, y
+            return y
 
         except FileNotFoundError:
             os.remove(Settings.tmp_midi_file)
