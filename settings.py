@@ -25,7 +25,7 @@ class Settings:
     ]
 
     # audio file generation
-    sample_rate = 44100
+    sample_rate = 22050 
     audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
@@ -104,3 +104,6 @@ This means that, if the audio files are present, the program will
 still use them even if the option is False.
 This option is just about downloading the set.
 """
+
+
+
