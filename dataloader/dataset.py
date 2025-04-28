@@ -3,7 +3,6 @@ import platform
 import subprocess
 
 import numpy as np
-from mido import MidiFile  # type: ignore
 
 from dataloader.dataset_folder_management import download_dataset, is_dataset_ok
 from dataloader.Song import Song
@@ -55,7 +54,9 @@ class DataSet:
         """
         return len(self.__data)
 
-    def __getitem__(self, index: int) -> tuple[MidiFile, tuple[int, np.ndarray]]:
+    def __getitem__(
+        self, index: int
+    ) -> tuple[tuple[np.ndarray, int, int, int], np.ndarray]:
         """
         Returns the index-th song in the dataset
 
@@ -68,10 +69,13 @@ class DataSet:
         OUTPUT
         ------
         The song, as tuple composed of:
-        - midi pattern
-        - audio file, represented as a tuple with:
-            - the sample rate
-            - the actual data, as a np array
+        - the midi pattern, described as a tuple of:
+            - the messages, in a custom numpy format (recreate the real midi
+                via Song.from_np(...))
+            - the tempo of the song
+            - the number of ticks per beat
+            - the number of messages in the song
+        - audio file, as loaded from librosa
         """
         song = Song.from_path(self.__data[index])
 
@@ -79,7 +83,7 @@ class DataSet:
         if crop_region is not None:
             song = song.cut(crop_region[0], crop_region[1])
 
-        return song.get_midi(), song.to_wav()
+        return song.to_np(), song.to_wav()
 
     def __check_sw_dependencies(self) -> None:
         """
