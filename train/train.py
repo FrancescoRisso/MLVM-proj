@@ -1,18 +1,22 @@
+import librosa
+import numpy as np
+import pretty_midi  # type: ignore
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from model.model import HarmonicCNN
-from train.losses import harmoniccnn_loss  
-from dataloader.dataset import DataSet 
+from dataloader.dataset import DataSet
+from dataloader.Song import Song
 from dataloader.split import Split
+from model.model import HarmonicCNN
 from settings import Settings as s
-import pretty_midi
-import librosa
-import numpy as np
+from train.losses import harmoniccnn_loss
 
-def midi_to_label_matrices(midi_path: str, sr: int, hop_length: int, n_bins: int, fmin=librosa.note_to_hz('C1')) -> dict:
+
+def midi_to_label_matrices(
+    midi_path: str, sr: int, hop_length: int, n_bins: int, fmin=librosa.note_to_hz("C1")
+) -> dict:
     midi = pretty_midi.PrettyMIDI(midi_path)
     duration = midi.get_end_time()
     n_frames = int(np.ceil(duration * sr / hop_length))
@@ -55,19 +59,26 @@ def train_one_epoch(
     label_smoothing: float = 0.1,
     weighted: bool = True,
     positive_weight: float = 0.95,
-    show_progress: bool = True
+    show_progress: bool = True,
 ) -> float:
-    
+
     model.train()
     running_loss = 0.0
     total_batches = len(dataloader)
 
-    for batch in (dataloader):
+    for batch in dataloader:
         # Get these from the dataloeder (get item from dataset)
-        
-        midis, audios = batch  #tutti i midi e tutti gli audio del batch
-        
-        yo_true = batch["yo"].to(device)   
+
+        # tutti i midi e tutti gli audio del batch
+        (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
+
+        # EXAMPLE
+        for i in range(midis_np.shape[0]):
+            midi = Song.from_np(
+                midis_np[i], tempos[i], ticks_per_beats[i], nums_messages[i]
+            ).get_midi()
+
+        yo_true = batch["yo"].to(device)
         yp_true = batch["yp"].to(device)
         yn_true = batch["yn"].to(device)
 
@@ -75,11 +86,15 @@ def train_one_epoch(
         yo_pred, yp_pred, yn_pred = model(x)
 
         loss = harmoniccnn_loss(
-            yo_pred, yp_pred, yn_pred,
-            yo_true, yp_true, yn_true,
+            yo_pred,
+            yp_pred,
+            yn_pred,
+            yo_true,
+            yp_true,
+            yn_true,
             label_smoothing=label_smoothing,
             weighted=weighted,
-            positive_weight=positive_weight
+            positive_weight=positive_weight,
         )
 
         loss.backward()
@@ -92,7 +107,6 @@ def train_one_epoch(
 # ---------- Training function ----------
 def train():
 
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on {device}")
 
@@ -103,13 +117,15 @@ def train():
     train_dataset = DataSet(Split.TRAIN, s.seconds)
     train_loader = DataLoader(train_dataset, batch_size=s.batch_size, shuffle=True)
 
-
     for epoch in range(s.epochs):
         avg_loss = train_one_epoch(
-            model, train_loader, optimizer, device,
+            model,
+            train_loader,
+            optimizer,
+            device,
             label_smoothing=s.label_smoothing,
             weighted=s.weighted,
-            positive_weight=s.positive_weight
+            positive_weight=s.positive_weight,
         )
         print(f"[Epoch {epoch+1}/{s.epochs}] Loss: {avg_loss:.4f}")
 

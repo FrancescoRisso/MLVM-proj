@@ -28,6 +28,7 @@ class Settings:
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
     seconds = 2
+    max_midi_messages = 200
     
     # model settings
     hop_length = 256
