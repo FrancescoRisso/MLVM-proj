@@ -31,7 +31,7 @@ class Settings:
     max_midi_messages = 200
     
     # model settings
-    hop_length = 256
+    hop_length = 2
     n_bins = 84
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
