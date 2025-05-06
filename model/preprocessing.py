@@ -16,9 +16,12 @@ Returns:
     cqt_tensor: CQT tensor of shape (n_bins, time_steps)
 """
 def constant_q_transform(y: np.ndarray, sr: int, hop_length: int, n_bins: int) -> np.ndarray:
+    if isinstance(y, torch.Tensor):
+        y = y.cpu().numpy()
+
+    # Ora y è un array NumPy, quindi possiamo passarlo a librosa
     cqt = librosa.cqt(y, sr=sr, hop_length=hop_length, n_bins=n_bins)
     return np.abs(cqt)
-
 
 # ---------- Harmonic Stacking ----------
 """
@@ -42,8 +45,18 @@ def harmonic_stacking(cqt_np: np.ndarray, shifts: list[int]) -> np.ndarray:
 
 # ---------- Preprocessing Function ----------
 def preprocess(y: np.ndarray) -> torch.Tensor:
-    cqt_tensor = constant_q_transform(y, Settings.sample_rate, Settings.hop_length, Settings.n_bins)
-    stacked_tensor = harmonic_stacking(cqt_tensor, Settings.harmonic_shifts)
-    input_tensor = torch.tensor(stacked_tensor).unsqueeze(0).float().to(Settings.device)   # Add batch dimension
+    
+    batch = []
+    
+    for i in range(len(y)):
+        
+        cqt_tensor = constant_q_transform(y[i], Settings.sample_rate, Settings.hop_length, Settings.n_bins)
+        stacked_tensor = harmonic_stacking(cqt_tensor, Settings.harmonic_shifts)
+        input_tensor = torch.tensor(stacked_tensor).float().to(Settings.device)   # Add batch dimension
+        batch.append(input_tensor)
 
-    return input_tensor
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    batch = torch.stack(batch, dim=0).to(device)  # Stack the batch and move to device
+    print(f"Batch shape: {batch.shape}")
+    
+    return batch
