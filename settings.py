@@ -30,17 +30,17 @@ class Settings:
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
     seconds = 2
-    max_midi_messages = 200
-
+    max_midi_messages = 300
+    
     # model settings
-    hop_length = 2
-    n_bins = 84
+    hop_length = 512
+    n_bins = 88
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # training settings
     epochs = 1
-    batch_size = 2
+    batch_size = 30
     learning_rate = 1e-4
     label_smoothing = 0.1
     weighted = True
