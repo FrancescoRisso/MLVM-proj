@@ -30,8 +30,8 @@ def midi_to_wav(
 
     params = ["fluidsynth", "-ni"]
     params = [*params, "-g", str(gain)]
-    params = [*params, sound_font, midi_file]
     params = [*params, "-F", out_file]
     params = [*params, "-r", str(sample_rate)]
+    params = [*params, sound_font, midi_file]
 
     subprocess.call(params, stdout=stdout)
