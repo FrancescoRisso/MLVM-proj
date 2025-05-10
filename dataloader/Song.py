@@ -23,7 +23,7 @@ PROGRAM_CHANGE = 6
 
 
 class Song:
-    def __init__(self, midi: MidiFile, tempo=None):
+    def __init__(self, midi: MidiFile, tempo=None, wav_path: None | str = None):
         """
         Creates a new song, starting from a midi object
 
@@ -33,15 +33,18 @@ class Song:
         - midi: the midi representation of the song
         - tempo: the tempo of the song, if present (otherwhise, it will be
             computed)
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
         """
         self.__midi = midi
         self.__tempo = tempo
         self.__ticks_per_beat = midi.ticks_per_beat
+        self.__wav_path = wav_path
 
         self.__update_song_tempo()
 
     @classmethod
-    def from_path(cls, path: str) -> Song:
+    def from_path(cls, path: str, wav_path: None | str = None) -> Song:
         """
         Creates a new song, reading the midi from a file
 
@@ -49,17 +52,23 @@ class Song:
         PARAMETERS
         ----------
         - path: the path to the .mid (or .midi) file
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
 
         ---------------------------------------------------------------------
         OUTPUT
         ------
         The song
         """
-        return Song(MidiFile(path))
+        return Song(MidiFile(path), wav_path=wav_path)
 
     @classmethod
     def from_tracks(
-        cls, tracks: Iterable[MidiTrack], ticks_per_beat: int, tempo: int | None = None
+        cls,
+        tracks: Iterable[MidiTrack],
+        ticks_per_beat: int,
+        tempo: int | None = None,
+        wav_path: None | str = None,
     ) -> Song:
         """
         Creates a new song that contains some specific tracks
@@ -72,24 +81,57 @@ class Song:
             written
         - tempo: the tempo of the song, if present (otherwhise, it will be
             computed)
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
 
         ---------------------------------------------------------------------
         OUTPUT
         ------
         The song
         """
-        return Song(MidiFile(tracks=tracks, ticks_per_beat=ticks_per_beat), tempo)
+        return Song(
+            MidiFile(tracks=tracks, ticks_per_beat=ticks_per_beat),
+            tempo,
+            wav_path=wav_path,
+        )
 
     @classmethod
     def from_np(
-        cls, data: np.ndarray, tempo: int, ticks_per_beat: int, num_messages: int
+        cls,
+        data: np.ndarray,
+        tempo: int,
+        ticks_per_beat: int,
+        num_messages: int,
+        wav_path: None | str = None,
     ) -> Song:
+        """
+        Creates a new song from our numpy representation
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - data: the numpy representation of the midi
+        - tempo: the tempo of the song, if present (otherwhise, it will be
+            computed)
+        - ticks_per_beat: the ticks_per_beat setting in which the tracks are
+            written
+        - num_messages: the number of meaningful messages in the midi
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The song
+        """
         track = MidiTrack()
 
         for i in range(num_messages):
             track.append(np_to_msg(data[i]))
 
-        return Song.from_tracks([track], tempo=tempo, ticks_per_beat=ticks_per_beat)
+        return Song.from_tracks(
+            [track], tempo=tempo, ticks_per_beat=ticks_per_beat, wav_path=wav_path
+        )
 
     def __update_song_tempo(self) -> None:
         """
@@ -187,7 +229,9 @@ class Song:
             else:
                 break
 
-        return Song.from_tracks([cut_track], self.__ticks_per_beat, self.__tempo)
+        return Song.from_tracks(
+            [cut_track], self.__ticks_per_beat, self.__tempo, wav_path=self.__wav_path
+        )
 
     def __turn_off_running_notes(
         self, cut_track: MidiTrack, running_notes: list[int | None], time: int
@@ -400,13 +444,40 @@ class Song:
             os.remove(Settings.tmp_midi_file)
             os.remove(Settings.tmp_audio_file)
 
-            return sr, y
+            return y
 
         except FileNotFoundError:
             os.remove(Settings.tmp_midi_file)
             print("Error: fluidsynth may not be installed")
             print('Please install it with "sudo apt install fluidsynth"')
             exit(-1)
+
+    def load_cut_wav(self, start: int, end: int) -> np.ndarray:
+        """
+        Loads a cut of the corresponding audio file
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - start: the second in which the cut should start
+        - end: the second in which the cut should end
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The wav data, as loaded by librosa
+        """
+
+        assert self.__wav_path is not None
+
+        song, _ = librosa.load(
+            self.__wav_path,
+            sr=Settings.sample_rate,
+            duration=end,
+        )
+        
+        data_points_before_start = round(start * Settings.sample_rate)
+        return song[data_points_before_start:]
 
     def to_np(self) -> tuple[np.ndarray, int, int, int]:
         """

@@ -38,7 +38,7 @@ class DataSet:
 
         self.__duration = duration
 
-        folder_path = os.path.join(Settings.dataset_folder, split.value)
+        folder_path = os.path.join(Settings.dataset_folder, split.value, "midi")
         self.__data = [
             os.path.join(folder_path, file) for file in os.listdir(folder_path)
         ]
@@ -77,11 +77,19 @@ class DataSet:
             - the number of messages in the song
         - audio file, as loaded from librosa
         """
-        song = Song.from_path(self.__data[index])
+        wav_path = (
+            self.__data[index].replace("midi", "wav")
+            if Settings.generate_audio_on_download
+            else None
+        )
+        song = Song.from_path(self.__data[index], wav_path=wav_path)
 
         crop_region = song.choose_cut_boundary(self.__duration)
         if crop_region is not None:
             song = song.cut(crop_region[0], crop_region[1])
+
+        if Settings.generate_audio_on_download:
+            return song.to_np(), song.load_cut_wav(*crop_region)
 
         return song.to_np(), song.to_wav()
 
