@@ -13,13 +13,13 @@ from mido.midifiles.meta import MetaMessage  # type: ignore
 from dataloader.MidiToWav import midi_to_wav
 from settings import Settings  # type: ignore
 
-TIME_SIGNATURE = 0
 SET_TEMPO = 1
 END_OF_TRACK = 2
 CONTROL_CHANGE = 3
 NOTE_ON = 4
 NOTE_OFF = 5
 PROGRAM_CHANGE = 6
+TIME_SIGNATURE = 7
 
 
 class Song:

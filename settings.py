@@ -47,6 +47,11 @@ class Settings:
     weighted = True
     save_model = True
 
+    # RNN settings
+    hidden_size = 10000
+    encoder_num_layers = 1
+    decoder_num_layers = 1
+
 
 """
 NOTE ABOUT OPTION "generate_audio_on_download"
