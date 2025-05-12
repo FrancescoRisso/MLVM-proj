@@ -48,7 +48,7 @@ class Settings:
     save_model = True
 
     # RNN settings
-    hidden_size = 10000
+    hidden_size = 10000  # must be even
     encoder_num_layers = 1
     decoder_num_layers = 1
 
