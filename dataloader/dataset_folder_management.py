@@ -6,7 +6,9 @@ from shutil import rmtree
 from zipfile import ZipFile
 
 import requests
+from tqdm import tqdm
 
+from dataloader.MidiToWav import midi_to_wav
 from dataloader.split import Split
 from settings import Settings
 
@@ -15,19 +17,29 @@ def is_dataset_ok() -> bool:
     """
     Checks if the dataset is reasonably correct.
 
+    It also sets Settings.generate_audio_on_download to True if the wavs
+    are present in the dataset (to speed up the dataset access)
+
     ---------------------------------------------------------------------
     In particular, the dataset folder is considered correct if:
     - it is present
     - it contains the required metadata files
     - it contains the 3 split folders (`./train`, `./validation` and
         `./test`)
-    - each of the split folders has at least a file inside
+    - each of the split folders has the midi (and wav, if required)
+        folder
+    - all the midi folders have at least a file inside
+    - if required, the wav folders have the same number of files than the
+        corresponding midi folders
 
     ---------------------------------------------------------------------
     OUTPUT
     ------
     Whether the dataset folder is considered correct or not
     """
+
+    nums_midis = {}
+
     try:
         assert os.path.isdir(Settings.dataset_folder)
 
@@ -35,12 +47,47 @@ def is_dataset_ok() -> bool:
             assert os.path.exists(os.path.join(Settings.dataset_folder, file))
 
         for split in Split.list():
-            assert os.path.isdir(os.path.join(Settings.dataset_folder, split))
-            assert len(os.listdir(os.path.join(Settings.dataset_folder, split))) > 0
+            assert os.path.isdir(os.path.join(Settings.dataset_folder, split, "midi"))
+
+            midis = os.listdir(os.path.join(Settings.dataset_folder, split, "midi"))
+            nums_midis[split] = len(midis)
+
+            assert len(midis) > 0
+
+        if Settings.generate_audio_on_download:
+            __are_wav_ok(nums_midis)
+        else:
+            try:
+                __are_wav_ok(nums_midis)
+                Settings.generate_audio_on_download = True
+            except AssertionError:
+                pass
 
         return True
     except AssertionError:
         return False
+
+
+def __are_wav_ok(num_midis: dict[Split, int]):
+    """
+    Checks if the wav part of the dataset is reasonably correct
+
+    ---------------------------------------------------------------------
+    PARAMETERS
+    ----------
+    -   num_midis: how many midi files each split has
+
+    ---------------------------------------------------------------------
+    OUTPUT
+    ------
+    Whether the wav part of the dataset is considered correct or not
+    """
+
+    for split in Split.list():
+        assert os.path.isdir(os.path.join(Settings.dataset_folder, split, "wav"))
+
+        wavs = os.listdir(os.path.join(Settings.dataset_folder, split, "wav"))
+        assert num_midis[split] == len(wavs)
 
 
 def download_dataset():
@@ -146,7 +193,7 @@ def _move_song(
 ) -> None:
     """
     Moves a song to the correct split folder, while also making the file
-    name more meaningful
+    name more meaningful, and creating the wav version
 
     ---------------------------------------------------------------------
     PARAMETERS
@@ -167,12 +214,28 @@ def _move_song(
     else:
         num_versions[lowercase_fname] += 1
 
-    fname = f"{fname}-v{num_versions[lowercase_fname]}.midi"
+    fname = f"{fname}-v{num_versions[lowercase_fname]}"
+    fname_midi = os.path.join("midi", f"{fname}.midi")
+    fname_wav = os.path.join("wav", f"{fname}.wav")
+    folder = os.path.join(Settings.dataset_folder, song["split"])
 
     os.rename(
         os.path.join(download_base_path, song["midi_filename"]),
-        os.path.join(Settings.dataset_folder, song["split"], fname),
+        os.path.join(folder, fname_midi),
     )
+
+    if Settings.generate_audio_on_download:
+        try:
+            midi_to_wav(
+                midi_file=os.path.join(folder, fname_midi),
+                out_file=os.path.join(folder, fname_wav),
+                sound_font=Settings.audio_font_path,
+                sample_rate=Settings.sample_rate,
+            )
+        except FileNotFoundError:
+            print("Error: fluidsynth may not be installed")
+            print('Please install it with "sudo apt install fluidsynth"')
+            exit(-1)
 
 
 def _reorganize_dataset() -> None:
@@ -191,8 +254,20 @@ def _reorganize_dataset() -> None:
     - moves all the metadata files to the dataset folder
     - removes the leftover folders from the downloaded structure
     """
+
+    if Settings.generate_audio_on_download:
+        print(
+            "Re-organizing dataset folder (it will take some hours to convert to wav the 1276 midi files)..."
+        )
+    else:
+        print("Re-organizing dataset folder... ", end="")
+
     for split in Split.list():
         os.mkdir(os.path.join(Settings.dataset_folder, split))
+        os.mkdir(os.path.join(Settings.dataset_folder, split, "midi"))
+
+        if Settings.generate_audio_on_download:
+            os.mkdir(os.path.join(Settings.dataset_folder, split, "wav"))
 
     download_base_path = os.path.join(Settings.dataset_folder, "maestro-v3.0.0")
     csv_path = os.path.join(download_base_path, "maestro-v3.0.0.csv")
@@ -200,7 +275,10 @@ def _reorganize_dataset() -> None:
 
     with open(csv_path, "r", newline="", encoding="utf-8") as csv_file:
         csv_reader = csv.DictReader(csv_file, delimiter=",", quotechar='"')
-        for song in csv_reader:
+
+        for song in (
+            tqdm(csv_reader) if Settings.generate_audio_on_download else csv_reader
+        ):
             _move_song(song, download_base_path, num_versions)
 
     for file in Settings.metadata_files_to_keep:
@@ -210,3 +288,5 @@ def _reorganize_dataset() -> None:
         )
 
     rmtree(download_base_path)
+
+    print("Done!")

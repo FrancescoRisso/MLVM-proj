@@ -13,9 +13,17 @@ from mido.midifiles.meta import MetaMessage  # type: ignore
 from dataloader.MidiToWav import midi_to_wav
 from settings import Settings  # type: ignore
 
+TIME_SIGNATURE = 0
+SET_TEMPO = 1
+END_OF_TRACK = 2
+CONTROL_CHANGE = 3
+NOTE_ON = 4
+NOTE_OFF = 5
+PROGRAM_CHANGE = 6
+
 
 class Song:
-    def __init__(self, midi: MidiFile, tempo=None):
+    def __init__(self, midi: MidiFile, tempo=None, wav_path: None | str = None):
         """
         Creates a new song, starting from a midi object
 
@@ -25,15 +33,18 @@ class Song:
         - midi: the midi representation of the song
         - tempo: the tempo of the song, if present (otherwhise, it will be
             computed)
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
         """
         self.__midi = midi
         self.__tempo = tempo
         self.__ticks_per_beat = midi.ticks_per_beat
+        self.__wav_path = wav_path
 
         self.__update_song_tempo()
 
     @classmethod
-    def from_path(cls, path: str) -> Song:
+    def from_path(cls, path: str, wav_path: None | str = None) -> Song:
         """
         Creates a new song, reading the midi from a file
 
@@ -41,17 +52,23 @@ class Song:
         PARAMETERS
         ----------
         - path: the path to the .mid (or .midi) file
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
 
         ---------------------------------------------------------------------
         OUTPUT
         ------
         The song
         """
-        return Song(MidiFile(path))
+        return Song(MidiFile(path), wav_path=wav_path)
 
     @classmethod
     def from_tracks(
-        cls, tracks: Iterable[MidiTrack], ticks_per_beat: int, tempo: int | None = None
+        cls,
+        tracks: Iterable[MidiTrack],
+        ticks_per_beat: int,
+        tempo: int | None = None,
+        wav_path: None | str = None,
     ) -> Song:
         """
         Creates a new song that contains some specific tracks
@@ -64,13 +81,57 @@ class Song:
             written
         - tempo: the tempo of the song, if present (otherwhise, it will be
             computed)
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
 
         ---------------------------------------------------------------------
         OUTPUT
         ------
         The song
         """
-        return Song(MidiFile(tracks=tracks, ticks_per_beat=ticks_per_beat), tempo)
+        return Song(
+            MidiFile(tracks=tracks, ticks_per_beat=ticks_per_beat),
+            tempo,
+            wav_path=wav_path,
+        )
+
+    @classmethod
+    def from_np(
+        cls,
+        data: np.ndarray,
+        tempo: int,
+        ticks_per_beat: int,
+        num_messages: int,
+        wav_path: None | str = None,
+    ) -> Song:
+        """
+        Creates a new song from our numpy representation
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - data: the numpy representation of the midi
+        - tempo: the tempo of the song, if present (otherwhise, it will be
+            computed)
+        - ticks_per_beat: the ticks_per_beat setting in which the tracks are
+            written
+        - num_messages: the number of meaningful messages in the midi
+        - wav_path: the path where there is the pre-generated wav, if
+                available (or None otherwhise)
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The song
+        """
+        track = MidiTrack()
+
+        for i in range(num_messages):
+            track.append(np_to_msg(data[i]))
+
+        return Song.from_tracks(
+            [track], tempo=tempo, ticks_per_beat=ticks_per_beat, wav_path=wav_path
+        )
 
     def __update_song_tempo(self) -> None:
         """
@@ -110,6 +171,8 @@ class Song:
         The song obtained by the slicing process
         """
         control_track, music_track = self.__midi.tracks[0:2]
+
+        assert isinstance(music_track, MidiTrack)
 
         start_tick = second2tick(start_second, self.__ticks_per_beat, self.__tempo)
         end_tick = second2tick(end_second, self.__ticks_per_beat, self.__tempo)
@@ -160,8 +223,14 @@ class Song:
 
         self.__turn_off_running_notes(cut_track, running_notes, end_tick - cur_tick)
 
+        for m in control_track:
+            if m.time == 0:
+                cut_track.insert(0, m)
+            else:
+                break
+
         return Song.from_tracks(
-            [control_track, cut_track], self.__ticks_per_beat, self.__tempo
+            [cut_track], self.__ticks_per_beat, self.__tempo, wav_path=self.__wav_path
         )
 
     def __turn_off_running_notes(
@@ -169,7 +238,9 @@ class Song:
     ) -> None:
         """
         Given a list of the notes that are still running at the end of the
-        clip, adds a "note_off" event for each of them at the end of the clip
+        clip, adds a "note_off" event for each of them at the end of the
+        clip.
+        Finally, it adds a "end_of_track" message at the end of the track.
 
         ---------------------------------------------------------------------
         PARAMETERS
@@ -184,6 +255,8 @@ class Song:
                 msg = Message("note_off", channel=0, note=note, velocity=0, time=time)
                 cut_track.append(msg)
                 time = 0
+
+        cut_track.append(MetaMessage("end_of_track", time=time))
 
     def __first_message_of_cut(
         self,
@@ -334,7 +407,7 @@ class Song:
         start = random.uniform(0, self.__midi.length - duration)
         return start, start + duration
 
-    def to_wav(self, verbose: bool = False) -> tuple[int, np.ndarray]:
+    def to_wav(self, verbose: bool = False) -> np.ndarray:
         """
         Create a wav representation of the song
 
@@ -347,9 +420,7 @@ class Song:
         ---------------------------------------------------------------------
         OUTPUT
         ------
-        A tuple containing:
-        - the sample rate of the song
-        - the actual data, as a np array
+        The wav data, as loaded by librosa
 
         If the synthesizer (fluidsynth) is not installed, the program crashes
         instructing the user to install it.
@@ -361,18 +432,179 @@ class Song:
                 Settings.tmp_midi_file,
                 Settings.tmp_audio_file,
                 Settings.audio_font_path,
-                sample_rate=Settings.sample_rate
+                sample_rate=Settings.sample_rate,
             )
 
-            y, sr = librosa.load(Settings.tmp_audio_file, sr=Settings.sample_rate)
+            y, _ = librosa.load(
+                Settings.tmp_audio_file,
+                sr=Settings.sample_rate,
+                duration=Settings.seconds,
+            )
 
             os.remove(Settings.tmp_midi_file)
             os.remove(Settings.tmp_audio_file)
 
-            return sr, y
+            return y
 
         except FileNotFoundError:
             os.remove(Settings.tmp_midi_file)
             print("Error: fluidsynth may not be installed")
             print('Please install it with "sudo apt install fluidsynth"')
             exit(-1)
+
+    def load_cut_wav(self, start: int, end: int) -> np.ndarray:
+        """
+        Loads a cut of the corresponding audio file
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - start: the second in which the cut should start
+        - end: the second in which the cut should end
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        The wav data, as loaded by librosa
+        """
+
+        assert self.__wav_path is not None
+
+        song, _ = librosa.load(
+            self.__wav_path,
+            sr=Settings.sample_rate,
+            duration=end,
+        )
+        
+        data_points_before_start = round(start * Settings.sample_rate)
+        return song[data_points_before_start:]
+
+    def to_np(self) -> tuple[np.ndarray, int, int, int]:
+        """
+        Converts a song to a numpy array
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ------
+        A tuple containing:
+        - the np array with the song
+        - the tempo of the song
+        - the ticks per beat of the song
+        - the number of midi messages in the song
+        """
+        res = np.empty(shape=(Settings.max_midi_messages, 6), dtype=np.uint16)
+
+        for idx, msg in enumerate(self.__midi.tracks[0]):
+            if idx >= Settings.max_midi_messages:
+                raise Exception(
+                    f"A song with {len(self.__midi.tracks[0])} messages does not fit on the allocated {Settings.max_midi_messages}"
+                )
+            self.__msg_to_np(msg, res[idx])
+
+        return res, self.__tempo, self.__ticks_per_beat, len(self.__midi.tracks[0])
+
+    def __msg_to_np(self, msg: Message | MetaMessage, res: np.ndarray) -> None:
+        """
+        Stores a midi message into a np array in a suitable format
+
+        ---------------------------------------------------------------------
+        PARAMETERS
+        ----------
+        - msg: the message to save
+        - res: the array where to save the message
+        """
+
+        if isinstance(msg.time, float):
+            msg.time = second2tick(msg.time, self.__ticks_per_beat, self.__tempo)
+
+        if isinstance(msg, MetaMessage):
+            if msg.type == "time_signature":
+                res[:] = (
+                    msg.time,
+                    TIME_SIGNATURE,
+                    msg.numerator,
+                    msg.denominator,
+                    msg.clocks_per_click,
+                    msg.notated_32nd_notes_per_beat,
+                )
+
+            elif msg.type == "set_tempo":
+                res[:3] = (msg.time, SET_TEMPO, msg.tempo // 1000)
+
+            elif msg.type == "end_of_track":
+                res[:2] = (msg.time, END_OF_TRACK)
+
+            else:
+                raise NotImplementedError(f'To np not implemented for message "{msg}"')
+
+        # not MetaMessage
+        else:
+            if msg.type == "control_change":
+                res[:4] = (msg.time, CONTROL_CHANGE, msg.control, msg.value)
+
+            elif msg.type == "note_off" or (
+                msg.type == "note_on" and msg.velocity == 0
+            ):
+                res[:3] = (msg.time, NOTE_OFF, msg.note)
+
+            elif msg.type == "note_on":
+                res[:4] = (msg.time, NOTE_ON, msg.note, msg.velocity)
+
+            elif msg.type == "program_change":
+                res[:3] = (msg.time, PROGRAM_CHANGE, msg.program)
+
+            else:
+                raise NotImplementedError(f'To np not implemented for message "{msg}"')
+
+
+def np_to_msg(arr: np.ndarray) -> Message | MetaMessage:
+    """
+    Converts a midi message from np stored to real message
+
+    ---------------------------------------------------------------------
+    PARAMETERS
+    ----------
+    - arr: the midi message in the np format
+
+    ---------------------------------------------------------------------
+    OUTPUT
+    ------
+    The real (meta) message
+    """
+
+    if arr[1] == TIME_SIGNATURE:
+        return MetaMessage(
+            "time_signature",
+            time=int(arr[0]),
+            numerator=int(arr[2]),
+            denominator=int(arr[3]),
+            clocks_per_click=int(arr[4]),
+            notated_32nd_notes_per_beat=int(arr[5]),
+        )
+
+    if arr[1] == SET_TEMPO:
+        return MetaMessage("set_tempo", time=int(arr[0]), tempo=1000 * int(arr[2]))
+
+    if arr[1] == CONTROL_CHANGE:
+        return Message(
+            "control_change",
+            time=int(arr[0]),
+            control=int(arr[2]),
+            value=int(arr[3]),
+        )
+
+    if arr[1] == NOTE_OFF:
+        return Message("note_off", time=int(arr[0]), note=int(arr[2]))
+
+    if arr[1] == NOTE_ON:
+        return Message(
+            "note_on", time=int(arr[0]), note=int(arr[2]), velocity=int(arr[3])
+        )
+
+    if arr[1] == PROGRAM_CHANGE:
+        return Message("program_change", time=int(arr[0]), program=int(arr[2]))
+
+    if arr[1] == END_OF_TRACK:
+        return MetaMessage("end_of_track", time=int(arr[0]))
+
+    raise NotImplementedError(f'Unrecognized np message type "{arr[1]}"')

@@ -1,4 +1,5 @@
 import os
+
 import torch
 
 # automatic stuff, the actual settings are in the class Settings below
@@ -15,6 +16,7 @@ class Settings:
     test_folder = "test"
 
     # dataset downloading settings
+    generate_audio_on_download = False  # see note below
     metadata_files_to_keep = [
         "LICENSE",
         "README",
@@ -27,9 +29,78 @@ class Settings:
     audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
+    seconds = 2
+    max_midi_messages = 200
 
     # model settings
     hop_length = 256
     n_bins = 84
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # training settings
+    epochs = 1
+    batch_size = 2
+    learning_rate = 1e-4
+    label_smoothing = 0.1
+    weighted = True
+    positive_weight = 0.95
+    weighted = True
+
+
+"""
+NOTE ABOUT OPTION "generate_audio_on_download"
+---------------------------------------------------------------------
+
+PREMISE
+
+The original Maestro dataset is composed of midi files and the
+relative audio file.
+We however discard the audio files, since they do not only contain
+what is described in the midi (the piano), but also other
+instruments.
+
+For this reason, we only keep the midi from the dataset, and we
+synthesyze the audio file from that (which is a trivial task).
+
+---------------------------------------------------------------------
+
+OPTIONS
+
+To generate the audio files, we have two options:
+
+1)	ON THE FLY (generate_audio_on_download = False)
+    When we download the dataset, we just store the midis.
+    Then, when we access a dataset item, the midi is cut according to
+    the settings, and then the cut midi is synthesized to audio.
+    
+2)	ON DOWNLOAD (generate_audio_on_download = True)
+    After downloading the dataset, all the complete midis are
+    synthesized.
+    Then, on dataset access, it will be enough to cut the midi, then
+    load the full corresponding audio, and cut it the same way.
+
+---------------------------------------------------------------------
+
+TIME REQUIRED
+
+1)	ON THE FLY
+    Downloading & preparing the dataset: ~15 s
+    Accessing 1 data point (on average): ~1.2 s
+    Accessing the full training set: ~20 min
+    
+2)	ON DOWNLOAD
+    Downloading & preparing the dataset: ~4.5 h
+    Accessing 1 data point (on average): ~0.9 s
+    Accessing the full training set: ~15 min
+
+---------------------------------------------------------------------
+
+EFFICIENCY NOTE
+
+This settings only affects the dataset downloading, not the data
+access.
+This means that, if the audio files are present, the program will
+still use them even if the option is False.
+This option is just about downloading the set.
+"""
