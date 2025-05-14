@@ -278,8 +278,8 @@ def train():
         avg_loss = train_one_epoch(model, train_loader, optimizer, device)
         print(f"[Epoch {epoch+1}/{s.epochs}] Loss: {avg_loss:.4f}")
 
-    #torch.save(model.state_dict(), "harmoniccnn_trained.pth")
-    #print("Model saved as 'harmoniccnn_trained.pth'")
+    torch.save(model.state_dict(), "harmoniccnn_trained.pth")
+    print("Model saved as 'harmoniccnn_trained.pth'")
 
 
 if __name__ == "__main__":
