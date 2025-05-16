@@ -57,6 +57,5 @@ def preprocess(y: np.ndarray) -> torch.Tensor:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     batch = torch.stack(batch, dim=0).to(device)  # Stack the batch and move to device
-    print(f"Batch shape: {batch.shape}")
     
     return batch

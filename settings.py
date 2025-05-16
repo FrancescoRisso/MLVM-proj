@@ -1,5 +1,4 @@
 import os
-
 import torch
 
 # automatic stuff, the actual settings are in the class Settings below
@@ -46,7 +45,7 @@ class Settings:
     weighted = True
     positive_weight = 0.95
     weighted = True
-
+    save_model = True
 
 """
 NOTE ABOUT OPTION "generate_audio_on_download"

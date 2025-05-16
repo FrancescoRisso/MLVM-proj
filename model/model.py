@@ -52,4 +52,4 @@ class HarmonicCNN(nn.Module):
         concat = torch.cat([xb, yn], dim=1)
         yo = self.out_yo(self.conv_b2(concat))
 
-        return yo, yn
+        return (yo, yn) #, postprocess(yp, yn, yo)  # Restituisce anche yp per il calcolo della loss
