@@ -6,12 +6,13 @@ from typing import Iterable
 
 import librosa
 import numpy as np
-from mido import MidiFile, MidiTrack, second2tick  # type: ignore
-from mido.messages import BaseMessage, Message  # type: ignore
-from mido.midifiles.meta import MetaMessage  # type: ignore
+import torch
+from mido import MidiFile, MidiTrack, second2tick
+from mido.messages import BaseMessage, Message
+from mido.midifiles.meta import MetaMessage
 
 from dataloader.MidiToWav import midi_to_wav
-from settings import Settings  # type: ignore
+from settings import Settings
 
 SET_TEMPO = 1
 END_OF_TRACK = 2
@@ -20,6 +21,22 @@ NOTE_ON = 4
 NOTE_OFF = 5
 PROGRAM_CHANGE = 6
 TIME_SIGNATURE = 7
+
+VALID_FIELDS_PER_MSG_TYPE = np.empty(shape=(8, 6), dtype=np.bool)
+
+# fmt: off
+# ms_type 0 for messages after song end
+VALID_FIELDS_PER_MSG_TYPE[0]              = (0, 0, 0, 0, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[SET_TEMPO]      = (1, 1, 1, 0, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[END_OF_TRACK]   = (1, 1, 0, 0, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[CONTROL_CHANGE] = (1, 1, 1, 1, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[NOTE_ON]        = (1, 1, 1, 1, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[NOTE_OFF]       = (1, 1, 1, 0, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[PROGRAM_CHANGE] = (1, 1, 1, 0, 0, 0)
+VALID_FIELDS_PER_MSG_TYPE[TIME_SIGNATURE] = (1, 1, 1, 1, 1, 1)
+# fmt: on
+
+VALID_FIELDS_PER_MSG_TYPE = torch.tensor(VALID_FIELDS_PER_MSG_TYPE)
 
 
 class Song:
@@ -492,7 +509,7 @@ class Song:
         - the ticks per beat of the song
         - the number of midi messages in the song
         """
-        res = np.empty(shape=(Settings.max_midi_messages, 6), dtype=np.uint16)
+        res = np.zeros(shape=(Settings.max_midi_messages, 6), dtype=np.uint16)
 
         for idx, msg in enumerate(self.__midi.tracks[0]):
             if idx >= Settings.max_midi_messages:

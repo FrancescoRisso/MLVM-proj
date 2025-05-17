@@ -45,13 +45,13 @@ class HarmonicRNN(nn.Module):
         PARAMETERS
         ----------
         - batched_input: the input wav to be converted into midi
-            It must be a torch tensor\[_b_, _t_, _s_], where:
+            It must be a torch tensor\\[_b_, _t_, _s_], where:
             - _b_ is the index of the audio within the batch
             - _t_ is the time in seconds of a portion of the song
             - _s_ is the index of the sample within the second
             For example, batched_input[1, 2, 3] is the 4th data sample of the
             3rd second of the 2nd audio of the batch, which corresponds to
-            the (2 \* Settings.sample_rate + 3) overall sample for the song.
+            the (2 \\* Settings.sample_rate + 3) overall sample for the song.
 
             In other words, the shape of the array must be
             (Settings.batch_size*, Settings.seconds, Settings.sample_rate)\\
@@ -70,7 +70,7 @@ class HarmonicRNN(nn.Module):
         _, hidden_states = self.__encoder(batched_input)
         hidden_states = hidden_states.reshape((-1, batch_size, Settings.hidden_size))
 
-        num_messages = torch.tensor(np.empty(shape=(batch_size,)), dtype=torch.uint32)
+        num_messages = torch.tensor(np.empty(shape=(batch_size,)), dtype=torch.float32)
         midi = torch.tensor(
             np.empty(shape=(batch_size, Settings.max_midi_messages, 6)),
             dtype=torch.float32,
