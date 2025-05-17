@@ -475,9 +475,9 @@ class Song:
             sr=Settings.sample_rate,
             duration=end,
         )
-        
-        data_points_before_start = round(start * Settings.sample_rate)
-        return song[data_points_before_start:]
+
+        samples_to_keep = Settings.seconds * Settings.sample_rate
+        return song[-samples_to_keep:]
 
     def to_np(self) -> tuple[np.ndarray, int, int, int]:
         """
