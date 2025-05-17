@@ -2,7 +2,9 @@ import numpy as np
 import torch
 import mido
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
+from dataloader.Song import Song
 from settings import Settings as s
 
 
@@ -82,13 +84,13 @@ def weighted_soft_accuracy(
         weighted_correct = correct * weights
 
         return weighted_correct.sum().item() / weights.sum().item()
-    
+
 
 def plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true, yn_true):
 
-    yo_pred_np = to_numpy(yo_pred)
+    yo_pred_np = to_numpy(F.sigmoid(yo_pred))
     yo_true_np = to_numpy(yo_true)
-    yn_pred_np = to_numpy(yn_pred)
+    yn_pred_np = to_numpy(F.sigmoid(yn_pred))
     yn_true_np = to_numpy(yn_true)
 
     plt.figure(figsize=(12, 8))
@@ -115,3 +117,61 @@ def plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true, yn_true):
 
     plt.tight_layout()
     plt.show()
+
+
+def batch_prediction_plot():
+
+    import os
+    from dataloader.dataset import DataSet, Split
+    from model.model import HarmonicCNN
+    from torch.utils.data import DataLoader
+    from settings import Settings as s
+
+    device = s.device
+    print(f"Training on {device}")
+
+    model_path = os.path.join(
+        "model_saves", "training_2025-05-17_19-54-36", "harmoniccnn_epoch_5.pth"
+    )
+
+    run_single_batch_prediction_plot(
+        model_path=model_path,
+        model=HarmonicCNN().to(s.device),
+        dataloader=DataLoader(
+            DataSet(Split.TRAIN, s.seconds), batch_size=s.batch_size, shuffle=True
+        ),
+    )
+
+
+@torch.no_grad()
+def run_single_batch_prediction_plot(
+    model_path: str,
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+):
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
+
+    batch = next(iter(dataloader))
+
+    (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
+
+    midi = Song.from_np(
+        midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
+    ).get_midi()
+
+    yo_true, yn_true = midi_to_label_matrices(
+        midi, s.sample_rate, s.hop_length, n_bins=88
+    )
+
+    input_audio = audios[0].to(device).unsqueeze(0)
+    yo_true_tensor = to_tensor(yo_true).to(device)
+    yn_true_tensor = to_tensor(yn_true).to(device)
+
+    yo_pred, yn_pred = model(input_audio)
+    yo_pred = torch.sigmoid(yo_pred.squeeze(1)[0])
+    yn_pred = torch.sigmoid(yn_pred.squeeze(1)[0])
+
+    plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true_tensor, yn_true_tensor)

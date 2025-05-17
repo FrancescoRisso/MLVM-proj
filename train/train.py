@@ -11,7 +11,13 @@ from dataloader.split import Split
 from model.model import HarmonicCNN
 from settings import Settings as s
 from train.losses import harmoniccnn_loss
-from train.utils import midi_to_label_matrices, to_tensor, weighted_soft_accuracy
+from train.utils import (
+    midi_to_label_matrices,
+    to_tensor,
+    weighted_soft_accuracy,
+    plot_prediction_vs_ground_truth,
+    batch_prediction_plot,
+)
 
 
 def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
@@ -19,7 +25,7 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
     running_loss = 0.0
     total_batches = len(dataloader)
 
-    for _, batch in tqdm.tqdm(
+    for batch_idx, batch in tqdm.tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
     ):
 
@@ -56,9 +62,15 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
         yn_pred = yn_pred.squeeze(1)
 
         # calcola le weigehted soft accuracy per debug
-        # yo_soft_accuracy = weighted_soft_accuracy(yo_pred, yo_true_batch, 0.95, 0.05, 0.1)
-        # yn_soft_accuracy = weighted_soft_accuracy(yn_pred, yn_true_batch, 0.95, 0.05, 0.1)
-        # print(f"yo_soft_accuracy: {yo_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}")
+        yo_soft_accuracy = weighted_soft_accuracy(
+            yo_pred, yo_true_batch, 0.95, 0.05, 0.1
+        )
+        yn_soft_accuracy = weighted_soft_accuracy(
+            yn_pred, yn_true_batch, 0.95, 0.05, 0.1
+        )
+        print(
+            f"yo_soft_accuracy: {yo_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
+        )
 
         loss = harmoniccnn_loss(
             yo_pred,
@@ -69,6 +81,13 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
             weighted=s.weighted,
             positive_weight=s.positive_weight,
         )
+
+        # If is the last batch of the last epoch, plot the prediction vs ground truth
+        if batch_idx == total_batches - 1 and epoch == s.epochs - 1:
+            # Plot the prediction vs ground truth
+            plot_prediction_vs_ground_truth(
+                yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
+            )
 
         loss.backward()
         optimizer.step()
@@ -85,6 +104,7 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
 
 def train():
+
     device = s.device
     print(f"Training on {device}")
 

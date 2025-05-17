@@ -24,13 +24,13 @@ class Settings:
     ]
 
     # audio file generation
-    sample_rate = 22050 
+    sample_rate = 22050
     audio_font_path = os.path.join(audio_font_folder, "Piano.sf2")
     tmp_midi_file = "tmp.midi"
     tmp_audio_file = "tmp.wav"
     seconds = 2
     max_midi_messages = 300
-    
+
     # model settings
     hop_length = 512
     n_bins = 88
@@ -38,7 +38,7 @@ class Settings:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # training settings
-    epochs = 1
+    epochs = 5
     batch_size = 30
     learning_rate = 1e-4
     label_smoothing = 0.1
@@ -46,6 +46,7 @@ class Settings:
     positive_weight = 0.95
     weighted = True
     save_model = True
+
 
 """
 NOTE ABOUT OPTION "generate_audio_on_download"
@@ -103,6 +104,3 @@ This means that, if the audio files are present, the program will
 still use them even if the option is False.
 This option is just about downloading the set.
 """
-
-
-
