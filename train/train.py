@@ -11,10 +11,7 @@ from dataloader.split import Split
 from model.model import HarmonicCNN
 from settings import Settings as s
 from train.losses import harmoniccnn_loss
-from train.utils import (
-    midi_to_label_matrices,
-    to_tensor,
-)
+from train.utils import midi_to_label_matrices, to_tensor, weighted_soft_accuracy
 
 
 def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
@@ -58,6 +55,11 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
         yo_pred = yo_pred.squeeze(1)
         yn_pred = yn_pred.squeeze(1)
 
+        # calcola le weigehted soft accuracy per debug
+        # yo_soft_accuracy = weighted_soft_accuracy(yo_pred, yo_true_batch, 0.95, 0.05, 0.1)
+        # yn_soft_accuracy = weighted_soft_accuracy(yn_pred, yn_true_batch, 0.95, 0.05, 0.1)
+        # print(f"yo_soft_accuracy: {yo_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}")
+
         loss = harmoniccnn_loss(
             yo_pred,
             yn_pred,
@@ -74,7 +76,6 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
         running_loss += loss.item()
 
     if s.save_model:
-
         os.makedirs(session_dir, exist_ok=True)
         path = os.path.join(session_dir, f"harmoniccnn_epoch_{epoch+1}.pth")
         torch.save(model.state_dict(), path)
@@ -105,7 +106,3 @@ def train():
     final_model_path = os.path.join(session_dir, "harmoniccnn_trained.pth")
     torch.save(model.state_dict(), final_model_path)
     print(f"Model saved as '{final_model_path}'")
-
-
-if __name__ == "__main__":
-    train()

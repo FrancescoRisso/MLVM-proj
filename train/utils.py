@@ -60,27 +60,29 @@ def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor
 
 
-def soft_accuracy(
-    y_pred: torch.Tensor, y_true: torch.Tensor, tolerance: float = 0.1
+def weighted_soft_accuracy(
+    y_pred: torch.Tensor,
+    y_true: torch.Tensor,
+    weight_positive: float = 0.95,
+    weight_negative: float = 0.05,
+    tolerance: float = 0.1,
 ) -> float:
     """
-    Calcola l'accuratezza come la percentuale di elementi per cui la predizione
-    è entro ± tolerance rispetto al valore vero.
-
-    Args:
-        y_pred: output del modello, shape (B, 88, T)
-        y_true: ground truth, shape (B, 88, T)
-        tolerance: soglia di errore tollerata
-
-    Returns:
-        Accuratezza come valore float
+    Accuratezza pesata: le predizioni corrette per classi positive (1) valgono di più (0.95),
+    mentre quelle per classi negative (0) valgono meno (0.05).
+    E' intesa per essere usata come debug per vedere se la rete sta effettivamente migliorando
+    Non è intesa per essere usata come metrica di valutazione finale.
     """
     with torch.no_grad():
         diff = torch.abs(y_pred - y_true)
         correct = (diff <= tolerance).float()
-        accuracy = correct.mean().item()
-    return accuracy
 
+        # Assegna pesi: 0.95 per le note attive, 0.05 per quelle inattive
+        weights = torch.where(y_true > 0.5, weight_positive, weight_negative)
+        weighted_correct = correct * weights
+
+        return weighted_correct.sum().item() / weights.sum().item()
+    
 
 def plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true, yn_true):
 
