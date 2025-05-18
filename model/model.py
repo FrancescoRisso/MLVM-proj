@@ -53,4 +53,4 @@ class HarmonicCNN(nn.Module):
         concat = torch.cat([xb, yn], dim=1)     # usa output "attivato" di yn
         yo_logits = self.conv_b2(concat)        # logits
 
-        return yo_logits, yn_logits             # entrambi logits per la loss
+        return yo_logits, yn_logits             #postprocessing(Y0, YN) TODO da usare sigmoide anche prima
