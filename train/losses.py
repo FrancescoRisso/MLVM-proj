@@ -80,4 +80,7 @@ def harmoniccnn_loss(
     loss_onset = losses["onset"](yo_true, yo_logits)
     loss_note = losses["note"](yn_true, yn_logits)
 
-    return loss_onset + loss_note
+    return {
+        'loss_yo': loss_onset,
+        'loss_yn': loss_note
+    }

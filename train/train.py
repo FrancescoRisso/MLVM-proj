@@ -1,4 +1,6 @@
 import os
+import random
+import sys
 import torch
 import torch.optim as optim
 import tqdm
@@ -81,7 +83,9 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
             weighted=s.weighted,
             positive_weight=s.positive_weight,
         )
-
+        
+        total_loss = sum(loss.values())
+        
         # If is the last batch of the last epoch, plot the prediction vs ground truth
         if batch_idx == total_batches - 1 and epoch == s.epochs - 1:
             # Plot the prediction vs ground truth
@@ -89,10 +93,10 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
                 yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
             )
 
-        loss.backward()
+        total_loss.backward()
         optimizer.step()
 
-        running_loss += loss.item()
+        running_loss += total_loss.item()
 
     if s.save_model:
         os.makedirs(session_dir, exist_ok=True)
@@ -105,6 +109,12 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
 def train():
 
+    # Print random seed to debug potential errors due to randomness
+    seed = random.randrange(sys.maxsize)
+    random.seed(seed)
+    print("Seed was:", seed)
+
+    
     device = s.device
     print(f"Training on {device}")
 
