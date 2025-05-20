@@ -8,6 +8,7 @@ from dataloader.Song import Song
 from settings import Settings as s
 from train.losses import harmoniccnn_loss
 
+
 def midi_to_label_matrices(mido_midi, sample_rate, hop_length, n_bins=88):
     ticks_per_beat = mido_midi.ticks_per_beat
     min_pitch = 21  # Pitch corrispondente a "A0"
@@ -159,8 +160,12 @@ def run_single_batch_prediction_plot(
     (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
 
     # --- Crea ground truth ---
-    midi = Song.from_np(midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]).get_midi()
-    yo_true, yn_true = midi_to_label_matrices(midi, s.sample_rate, s.hop_length, n_bins=88)
+    midi = Song.from_np(
+        midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
+    ).get_midi()
+    yo_true, yn_true = midi_to_label_matrices(
+        midi, s.sample_rate, s.hop_length, n_bins=88
+    )
 
     # --- Input e target su device ---
     input_audio = audios[0].to(device).unsqueeze(0)

@@ -16,7 +16,14 @@ from train.utils import (
 )
 
 
-def evaluate(model_path):
+def evaluate(model_path, dataset):
+    """
+    Evaluate the model on the test set.
+    Args:
+        model_path (str): Path to the pre-trained model.
+        dataset (str): Dataset to evaluate on. Options: "DataSet(Split.TRAIN, s.seconds)", "DataSet(Split.TRAIN, s.seconds)".
+    """
+
     device = s.device
     print(f"Evaluating on {device}")
 
@@ -31,7 +38,7 @@ def evaluate(model_path):
 
     model.eval()
 
-    test_dataset = DataSet(Split.TEST, s.seconds)
+    test_dataset = DataSet(dataset, s.seconds)
     test_loader = DataLoader(test_dataset, batch_size=s.batch_size, shuffle=False)
 
     running_loss = 0.0
