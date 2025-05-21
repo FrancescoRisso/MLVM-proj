@@ -1,18 +1,16 @@
-from dataloader.dataset import DataSet
-from dataloader.split import Split
-from model.model import HarmonicCNN
-from settings import Settings
+import mido
+import librosa
+import numpy as np
+import torch
+import pretty_midi
+import matplotlib.pyplot as plt
 
-
-# WiP file
+from train.train import train
 
 
 def main():
-    dataset = DataSet(Split.TRAIN, Settings.seconds)
-    midi, audio = dataset[-1]
-
-    net = HarmonicCNN().to(Settings.device)
-    (yo, yp, yn), out_midi = net(audio)
+    # Esegui il training del modello
+    train()
 
 
 if __name__ == "__main__":

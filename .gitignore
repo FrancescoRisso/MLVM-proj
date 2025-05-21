@@ -175,6 +175,10 @@ cython_debug/
 
 # Dataset 
 data/
+data_1/
 
 # Audio fonts (since they are big)
 audio-fonts/*
+
+# model saves
+model_saves/
