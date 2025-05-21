@@ -4,7 +4,6 @@ import torch
 from torch.utils.data import DataLoader
 from dataloader.dataset import DataSet
 from dataloader.Song import Song
-from dataloader.split import Split
 from model.model import HarmonicCNN
 from settings import Settings as s
 from train.losses import harmoniccnn_loss

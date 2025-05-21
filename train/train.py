@@ -18,7 +18,6 @@ from train.utils import (
     to_tensor,
     weighted_soft_accuracy,
     plot_prediction_vs_ground_truth,
-    batch_prediction_plot,
 )
 
 

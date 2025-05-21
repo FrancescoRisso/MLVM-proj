@@ -1,10 +1,3 @@
-import mido
-import librosa
-import numpy as np
-import torch
-import pretty_midi
-import matplotlib.pyplot as plt
-
 from train.train import train
 
 
