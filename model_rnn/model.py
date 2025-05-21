@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from dataloader.Song import END_OF_TRACK
 from settings import Settings
 
 
@@ -25,15 +24,22 @@ class HarmonicRNN(nn.Module):
         )
 
         self.__decoder = nn.GRU(
-            input_size=6,
+            input_size=0,
             hidden_size=Settings.hidden_size,
             num_layers=Settings.decoder_num_layers,
+            batch_first=True,
             device=Settings.device,
         )
 
         self.__linear_output = nn.Linear(
             in_features=Settings.hidden_size,
             out_features=6,
+            device=Settings.device,
+        )
+
+        self.__num_msg_generator = nn.Linear(
+            in_features=Settings.hidden_size,
+            out_features=1,
             device=Settings.device,
         )
 
@@ -70,31 +76,23 @@ class HarmonicRNN(nn.Module):
         _, hidden_states = self.__encoder(batched_input)
         hidden_states = hidden_states.reshape((-1, batch_size, Settings.hidden_size))
 
-        num_messages = torch.tensor(np.empty(shape=(batch_size,)), dtype=torch.float32)
+        num_messages = self.__num_msg_generator(hidden_states).flatten()
         midi = torch.tensor(
             np.empty(shape=(batch_size, Settings.max_midi_messages, 6)),
             dtype=torch.float32,
         )
 
-        for batch_item in range(batch_size):
-            _, hidden = self.__decoder.forward(
-                torch.tensor(np.zeros(shape=(1, 6), dtype=np.float32)),
-                hidden_states[:, batch_item],
-            )
+        out, _ = self.__decoder.forward(
+            torch.tensor(
+                np.zeros(
+                    shape=(batch_size, Settings.max_midi_messages, 0), dtype=np.float32
+                )
+            ),
+            hidden_states,
+        )
 
-            midi[batch_item, 0] = self.__linear_output(hidden)
-            last_midi_msg = midi[batch_item, 0]
-            messages = 1
-
-            while (
-                round(float(last_midi_msg[0])) != END_OF_TRACK
-                and messages < Settings.max_midi_messages - 1
-            ):
-                _, hidden = self.__decoder(last_midi_msg.reshape(1, -1), hidden)
-                messages += 1
-                midi[batch_item, messages] = self.__linear_output(hidden)
-                last_midi_msg = midi[batch_item, messages]
-
-            num_messages[batch_item] = messages + 1
+        shape = out.shape
+        out = out.reshape((-1, Settings.hidden_size))
+        midi = self.__linear_output(out).reshape((*shape[:-1], 6))
 
         return midi, num_messages

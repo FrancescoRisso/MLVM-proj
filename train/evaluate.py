@@ -10,7 +10,7 @@ from train.losses import harmoniccnn_loss
 from train.utils import (
     midi_to_label_matrices,
     to_tensor,
-    soft_accuracy,
+    weighted_soft_accuracy,
     plot_prediction_vs_ground_truth,
 )
 
@@ -84,8 +84,8 @@ def evaluate(model_path, dataset):
                 positive_weight=s.positive_weight,
             )
 
-            acc_yo = soft_accuracy(yo_pred, yo_true_batch)
-            acc_yn = soft_accuracy(yn_pred, yn_true_batch)
+            acc_yo = weighted_soft_accuracy(yo_pred, yo_true_batch)
+            acc_yn = weighted_soft_accuracy(yn_pred, yn_true_batch)
 
             running_loss += loss.item()
             all_acc_yo.append(acc_yo)
