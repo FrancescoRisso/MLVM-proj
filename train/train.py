@@ -140,7 +140,7 @@ def train():
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)
     optimizer = optim.Adam(model.parameters(), lr=s.learning_rate)
 
-    train_dataset = DataSet(Split.VALIDATION, s.seconds)
+    train_dataset = DataSet(Split.TRAIN, s.seconds)
     train_loader = DataLoader(train_dataset, batch_size=s.batch_size, shuffle=True)
 
     for epoch in range(s.epochs):
