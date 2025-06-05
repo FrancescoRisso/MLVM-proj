@@ -1,9 +1,16 @@
 import os
+from enum import Enum
+
 import torch
 
 # automatic stuff, the actual settings are in the class Settings below
 cur_dir = os.path.dirname(__file__)
 audio_font_folder = os.path.join(cur_dir, "audio-fonts")
+
+
+class Model(Enum):
+    CNN=0
+    RNN=1
 
 
 class Settings:
@@ -36,6 +43,7 @@ class Settings:
     n_bins = 88
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model: Model = Model.CNN
 
     # training settings
     epochs = 5
@@ -46,6 +54,11 @@ class Settings:
     positive_weight = 0.95
     weighted = True
     save_model = True
+
+    # RNN settings
+    hidden_size = 10000  # must be even
+    encoder_num_layers = 1
+    decoder_num_layers = 1
 
 
 """
