@@ -71,14 +71,17 @@ def evaluate(model_path, dataset):
             yn_true_batch = torch.stack(yn_true_batch)
             audio_input_batch = torch.stack(audio_input_batch)
 
-            yo_pred, yn_pred = model(audio_input_batch)
+            yo_pred, yp_pred, yn_pred = model(audio_input_batch)
             yo_pred = yo_pred.squeeze(1)
+            yp_pred = yp_pred.squeeze(1)
             yn_pred = yn_pred.squeeze(1)
 
             loss = harmoniccnn_loss(
                 yo_pred,
-                yn_pred,
+                yp_pred,
                 yo_true_batch,
+                yn_true_batch,
+                yn_pred,
                 yn_true_batch,
                 label_smoothing=s.label_smoothing,
                 weighted=s.weighted,

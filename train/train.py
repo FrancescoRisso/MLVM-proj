@@ -62,7 +62,8 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
         yo_pred = yo_pred.squeeze(1)
         yp_pred = yp_pred.squeeze(1)
-        yn_pred = yn_pred.squeeze(1)
+        if yn_pred is not None:
+            yn_pred = yn_pred.squeeze(1)
 
         # calcola le weigehted soft accuracy per debug
         yo_soft_accuracy = weighted_soft_accuracy(
@@ -81,10 +82,10 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
         loss = harmoniccnn_loss(
             yo_pred,
-            yn_pred,
             yp_pred,
             yo_true_batch,
             yn_true_batch,
+            yn_pred,
             yn_true_batch,
             label_smoothing=s.label_smoothing,
             weighted=s.weighted,
@@ -115,7 +116,6 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
 
 def train():
-
     # Print random seed to debug potential errors due to randomness
     seed = random.randrange(sys.maxsize)
     random.seed(seed)

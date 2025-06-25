@@ -36,6 +36,7 @@ class Settings:
     n_bins = 88
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    remove_yn = False  # if True, the model will not predict the note matrix
 
     # training settings
     epochs = 5

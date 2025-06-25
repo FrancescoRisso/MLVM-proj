@@ -64,14 +64,13 @@ def loss(
         "onset": onset_loss(weighted, label_smoothing, positive_weight),
     }
 
-
 def harmoniccnn_loss(
     yo_logits: torch.Tensor,
-    yn_logits: torch.Tensor,
     yp_logits: torch.Tensor,
     yo_true: torch.Tensor,
-    yn_true: torch.Tensor,
     yp_true: torch.Tensor,
+    yn_logits: torch.Tensor = None,
+    yn_true: torch.Tensor = None,
     label_smoothing: float = 0.2,
     weighted: bool = False,
     positive_weight: float = 0.5,
@@ -80,11 +79,17 @@ def harmoniccnn_loss(
     losses = loss(label_smoothing, weighted, positive_weight)
 
     loss_onset = losses["onset"](yo_true, yo_logits)
-    loss_note = losses["note"](yn_true, yn_logits)
     loss_tone = losses["note"](yp_true, yp_logits)
+    if yn_logits is None:
+        return {
+            'loss_yo': loss_onset,
+            'loss_yp': loss_tone
+        }
+
+    loss_note = losses["note"](yn_true, yn_logits)
 
     return {
         'loss_yo': loss_onset,
-        'loss_yn': loss_note,
-        'loss_yp': loss_tone
+        'loss_yp': loss_tone,
+        'loss_yn': loss_note
     }

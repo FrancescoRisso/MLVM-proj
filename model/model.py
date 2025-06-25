@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from model.postprocessing import postprocess
 from model.preprocessing import preprocess
+from settings import Settings as s
 
 
 # ---------- CNN Blocks ----------
@@ -47,12 +48,18 @@ class HarmonicCNN(nn.Module):
         yp = torch.sigmoid(yp_logits)  # only for internal use
 
         # --- Yn branch ---
-        yn_logits = self.conv_c3(self.relu_c2(self.conv_c1(yp)))  # logits
-        yn = torch.sigmoid(yn_logits)  # solo per yo
+        if not s.remove_yn:
+            yn_logits = self.conv_c3(self.relu_c2(self.conv_c1(yp)))  # logits
+            yn = torch.sigmoid(yn_logits)  # solo per yo
+        else:
+            yn_logits = None
 
         # --- Yo branch ---
         xb = self.block_b1(x)
-        concat = torch.cat([xb, yn], dim=1)  # uses "activated" yn output
+        if s.remove_yn:
+            concat = torch.cat([xb, yp], dim=1)
+        else:
+            concat = torch.cat([xb, yn], dim=1)  # uses "activated" yn output
         yo_logits = self.conv_b2(concat)  # logits
 
         return (
