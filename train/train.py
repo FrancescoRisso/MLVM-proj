@@ -58,9 +58,10 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
 
         optimizer.zero_grad()
 
-        (yo_pred, yn_pred) = model(audio_input_batch)
+        (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
 
         yo_pred = yo_pred.squeeze(1)
+        yp_pred = yp_pred.squeeze(1)
         yn_pred = yn_pred.squeeze(1)
 
         # calcola le weigehted soft accuracy per debug
@@ -70,14 +71,20 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, session_dir):
         yn_soft_accuracy = weighted_soft_accuracy(
             yn_pred, yn_true_batch, 0.95, 0.05, 0.1
         )
+        yp_soft_accuracy = weighted_soft_accuracy(
+            yp_pred, yn_true_batch, 0.95, 0.05, 0.1
+        )
+
         print(
-            f"yo_soft_accuracy: {yo_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
+            f"\nyo_soft_accuracy: {yo_soft_accuracy:.4f}, yp_soft_accuracy: {yp_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
         )
 
         loss = harmoniccnn_loss(
             yo_pred,
             yn_pred,
+            yp_pred,
             yo_true_batch,
+            yn_true_batch,
             yn_true_batch,
             label_smoothing=s.label_smoothing,
             weighted=s.weighted,
