@@ -26,11 +26,11 @@ class HarmonicCNN(nn.Module):
         self.conv_a3 = nn.Conv2d(8, 1, kernel_size=(5, 5), padding=(2, 2))
 
         # Yn branch (usa yp come input)
-        # self.conv_c1 = nn.Conv2d(
-        #     1, 32, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3)
-        # )
-        # self.relu_c2 = nn.ReLU()
-        # self.conv_c3 = nn.Conv2d(32, 1, kernel_size=(7, 3), padding=(3, 1))
+        self.conv_c1 = nn.Conv2d(
+            1, 32, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3)
+        )
+        self.relu_c2 = nn.ReLU()
+        self.conv_c3 = nn.Conv2d(32, 1, kernel_size=(7, 3), padding=(3, 1))
 
         # Yo branch (usa xb + yn come input)
         self.block_b1 = get_conv_net([3, 32], ks=(5, 5), s=(1, 1), p=(2, 2))
@@ -46,15 +46,16 @@ class HarmonicCNN(nn.Module):
         yp = torch.sigmoid(yp_logits)  # solo per uso interno (non restituito)
 
         # --- Yn branch ---
-        # yn_logits = self.conv_c3(self.relu_c2(self.conv_c1(yp)))  # logits
-        # yn = torch.sigmoid(yn_logits)  # solo per yo
+        yn_logits = self.conv_c3(self.relu_c2(self.conv_c1(yp)))  # logits
+        yn = torch.sigmoid(yn_logits)  # solo per yo
 
         # --- Yo branch ---
         xb = self.block_b1(x)
-        concat = torch.cat([xb, yp], dim=1)  # usa output "attivato" di yn
+        concat = torch.cat([xb, yn], dim=1)  # usa output "attivato" di yn
         yo_logits = self.conv_b2(concat)  # logits
 
         return (
             yo_logits,
             yp_logits,          # return yp_logits instead of yn_logits
+            yn_logits
         )  # postprocessing(Y0, YN) TODO da usare sigmoide anche prima
