@@ -76,32 +76,35 @@ def evaluate(model_path, dataset):
                 yn_true_batch = torch.stack(yn_true_batch)
                 audio_input_batch = torch.stack(audio_input_batch)
 
-                yo_pred, yn_pred = model(audio_input_batch)
-                yo_pred = yo_pred.squeeze(1)
-                yn_pred = yn_pred.squeeze(1)
+            yo_pred, yp_pred, yn_pred = model(audio_input_batch)
+            yo_pred = yo_pred.squeeze(1)
+            yp_pred = yp_pred.squeeze(1)
+            yn_pred = yn_pred.squeeze(1)
 
-                loss = harmoniccnn_loss(
-                    yo_pred,
-                    yn_pred,
-                    yo_true_batch,
-                    yn_true_batch,
-                    label_smoothing=s.label_smoothing,
-                    weighted=s.weighted,
-                    positive_weight=s.positive_weight,
+            loss = harmoniccnn_loss(
+                yo_pred,
+                yp_pred,
+                yo_true_batch,
+                yn_true_batch,
+                yn_pred,
+                yn_true_batch,
+                label_smoothing=s.label_smoothing,
+                weighted=s.weighted,
+                positive_weight=s.positive_weight,
+            )
+
+            acc_yo = weighted_soft_accuracy(yo_pred, yo_true_batch)
+            acc_yn = weighted_soft_accuracy(yn_pred, yn_true_batch)
+
+            running_loss += sum(loss.values())
+            all_acc_yo.append(acc_yo)
+            all_acc_yn.append(acc_yn)
+
+            if batch_idx == 0:
+                print("Plotting predictions vs ground truth (first batch)...")
+                plot_prediction_vs_ground_truth(
+                    yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
                 )
-
-                acc_yo = weighted_soft_accuracy(yo_pred, yo_true_batch)
-                acc_yn = weighted_soft_accuracy(yn_pred, yn_true_batch)
-
-                running_loss += sum(loss.values())
-                all_acc_yo.append(acc_yo)
-                all_acc_yn.append(acc_yn)
-
-                if batch_idx == 0:
-                    print("Plotting predictions vs ground truth (first batch)...")
-                    plot_prediction_vs_ground_truth(
-                        yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
-                    )
 
             else:  # Using RNN
                 audios = audios.reshape(

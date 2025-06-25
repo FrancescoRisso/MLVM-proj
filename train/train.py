@@ -66,8 +66,9 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
 
             (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
 
-            yo_pred = yo_pred.squeeze(1)
-            yp_pred = yp_pred.squeeze(1)
+        yo_pred = yo_pred.squeeze(1)
+        yp_pred = yp_pred.squeeze(1)
+        if yn_pred is not None:
             yn_pred = yn_pred.squeeze(1)
 
             # calcola le weigehted soft accuracy per debug
@@ -85,39 +86,39 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
                 f"\nyo_soft_accuracy: {yo_soft_accuracy:.4f}, yp_soft_accuracy: {yp_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
             )
 
-            loss = harmoniccnn_loss(
-                yo_pred,
-                yp_pred,
-                yo_true_batch,
-                yn_true_batch,
-                yn_pred,
-                yn_true_batch,
-                label_smoothing=s.label_smoothing,
-                weighted=s.weighted,
-                positive_weight=s.positive_weight,
+        loss = harmoniccnn_loss(
+            yo_pred,
+            yp_pred,
+            yo_true_batch,
+            yn_true_batch,
+            yn_pred,
+            yn_true_batch,
+            label_smoothing=s.label_smoothing,
+            weighted=s.weighted,
+            positive_weight=s.positive_weight,
+        )
+
+        total_loss = sum(loss.values())
+
+        # If is the last batch of the last epoch, plot the prediction vs ground truth
+        if batch_idx == total_batches - 1 and epoch == s.epochs - 1:
+            # Plot the prediction vs ground truth
+            plot_prediction_vs_ground_truth(
+                yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
             )
+    
+    else: # Using RNN
+        assert isinstance(model, HarmonicRNN)
 
-            total_loss = sum(loss.values())
+        audios = audios.reshape((
+            audios.shape[0], # leave batch items untouched
+            -1, # all the seconds
+            s.sample_rate  # samples per secon
+        ))
 
-            # If is the last batch of the last epoch, plot the prediction vs ground truth
-            if batch_idx == total_batches - 1 and epoch == s.epochs - 1:
-                # Plot the prediction vs ground truth
-                plot_prediction_vs_ground_truth(
-                    yo_pred[0], yn_pred[0], yo_true_batch[0], yn_true_batch[0]
-                )
-        
-        else: # Using RNN
-            assert isinstance(model, HarmonicRNN)
+        pred_midi, pred_len = model(audios)
 
-            audios = audios.reshape((
-                audios.shape[0], # leave batch items untouched
-                -1, # all the seconds
-                s.sample_rate  # samples per secon
-            ))
-
-            pred_midi, pred_len = model(audios)
-
-            total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
+        total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
 
         total_loss.backward()
         optimizer.step()
@@ -134,7 +135,6 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
 
 
 def train():
-
     # Print random seed to debug potential errors due to randomness
     seed = random.randrange(sys.maxsize)
     random.seed(seed)
