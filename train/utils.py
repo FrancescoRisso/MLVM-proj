@@ -87,34 +87,47 @@ def weighted_soft_accuracy(
         return weighted_correct.sum().item() / weights.sum().item()
 
 
-def plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true, yn_true):
+def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yn_true):
 
     yo_pred_np = to_numpy(F.sigmoid(yo_pred))
     yo_true_np = to_numpy(yo_true)
-    yn_pred_np = to_numpy(F.sigmoid(yn_pred))
+    yp_pred_np = to_numpy(F.sigmoid(yp_pred))
+    if yn_pred is not None:
+        yn_pred_np = to_numpy(F.sigmoid(yn_pred))
     yn_true_np = to_numpy(yn_true)
 
     plt.figure(figsize=(12, 8))
 
-    plt.subplot(2, 2, 1)
+    plt.subplot(3, 2, 1)
     plt.imshow(yo_true_np, aspect="auto", cmap="viridis")
     plt.title("YO Ground Truth")
     plt.colorbar()
 
-    plt.subplot(2, 2, 2)
+    plt.subplot(3, 2, 2)
     plt.imshow(yo_pred_np, aspect="auto", cmap="viridis")
     plt.title("YO Prediction")
     plt.colorbar()
 
-    plt.subplot(2, 2, 3)
+    plt.subplot(3, 2, 3)
     plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
-    plt.title("YN Ground Truth")
+    plt.title("YP Ground Truth")
     plt.colorbar()
 
-    plt.subplot(2, 2, 4)
-    plt.imshow(yn_pred_np, aspect="auto", cmap="inferno")
-    plt.title("YN Prediction")
+    plt.subplot(3, 2, 4)
+    plt.imshow(yp_pred_np, aspect="auto", cmap="inferno")
+    plt.title("YP Prediction")
     plt.colorbar()
+
+    if yn_pred is not None:
+        plt.subplot(3, 2, 5)
+        plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
+        plt.title("YN Ground Truth")
+        plt.colorbar()
+
+        plt.subplot(3, 2, 6)
+        plt.imshow(yn_pred_np, aspect="auto", cmap="inferno")
+        plt.title("YN Prediction")
+        plt.colorbar()
 
     plt.tight_layout()
     plt.show()
@@ -132,7 +145,7 @@ def batch_prediction_plot():
     print(f"Eval on {device}")
 
     model_path = os.path.join(
-        "model_saves", "training_2025-05-18_12-07-52", "harmoniccnn_epoch_5.pth"
+        "model_saves", "training_2025-06-25_10-19-45", "harmoniccnn_epoch_5.pth"
     )
 
     run_single_batch_prediction_plot(
@@ -173,19 +186,25 @@ def run_single_batch_prediction_plot(
     yn_true_tensor = to_tensor(yn_true).to(device).squeeze(0)
 
     # --- Predizione ---
-    yo_logits, yn_logits = model(input_audio)
+    yo_logits, yp_logits, yn_logits = model(input_audio)
     yo_logits = yo_logits.squeeze(1)[0]
-    yn_logits = yn_logits.squeeze(1)[0]
+    yp_logits = yp_logits.squeeze(1)[0]
+    if yn_logits is not None:
+        yn_logits = yn_logits.squeeze(1)[0]
 
     # --- Applica sigmoid per accuratezze soft ---
     yo_pred = torch.sigmoid(yo_logits)
-    yn_pred = torch.sigmoid(yn_logits)
+    yp_pred = torch.sigmoid(yp_logits) 
+    if yn_logits is not None:
+        yn_pred = torch.sigmoid(yn_logits)
 
     # --- Calcolo loss totale ---
     loss_total = harmoniccnn_loss(
         yo_logits=yo_logits,
-        yn_logits=yn_logits,
+        yp_logits=yp_logits,
         yo_true=yo_true_tensor,
+        yp_true=yn_true_tensor,
+        yn_logits=yn_logits,
         yn_true=yn_true_tensor,
         label_smoothing=0.2,
         weighted=False,
@@ -194,7 +213,9 @@ def run_single_batch_prediction_plot(
     total_loss = sum(loss_total.values())
     # --- Calcolo accuratezze ---
     acc_yo = weighted_soft_accuracy(yo_pred, yo_true_tensor)
-    acc_yn = weighted_soft_accuracy(yn_pred, yn_true_tensor)
+    acc_yp = weighted_soft_accuracy(yp_pred, yn_true_tensor)
+    if yn_logits is not None:
+        acc_yn = weighted_soft_accuracy(yn_pred, yn_true_tensor)
 
     # --- Stampa risultati ---
     print(f"Total Loss: {total_loss.item():.4f}")
@@ -202,4 +223,4 @@ def run_single_batch_prediction_plot(
     print(f"YN Soft Accuracy: {acc_yn:.4f}")
 
     # --- Plot ---
-    plot_prediction_vs_ground_truth(yo_pred, yn_pred, yo_true_tensor, yn_true_tensor)
+    plot_prediction_vs_ground_truth(yo_pred, yp_pred, yo_true_tensor, yn_true_tensor)

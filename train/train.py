@@ -62,32 +62,48 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
                 audio_input_batch
             )  # Forma finale: [batch_size, audio_features]
 
-            (yo_pred, yn_pred) = model(audio_input_batch)
+            optimizer.zero_grad()
+
+            (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
 
             yo_pred = yo_pred.squeeze(1)
-            yn_pred = yn_pred.squeeze(1)
+            yp_pred = yp_pred.squeeze(1)
+            if yn_pred is not None:
+                yn_pred = yn_pred.squeeze(1)
+            yp_pred = yp_pred.squeeze(1)
+            if yn_pred is not None:
+                yn_pred = yn_pred.squeeze(1)
 
-            # calcola le weigehted soft accuracy per debug
-            yo_soft_accuracy = weighted_soft_accuracy(
-                yo_pred, yo_true_batch, 0.95, 0.05, 0.1
-            )
-            yn_soft_accuracy = weighted_soft_accuracy(
-                yn_pred, yn_true_batch, 0.95, 0.05, 0.1
-            )
-            print(
-                f"yo_soft_accuracy: {yo_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
-            )
+                # calcola le weighted soft accuracy per debug
+                yo_soft_accuracy = weighted_soft_accuracy(
+                    yo_pred, yo_true_batch, 0.95, 0.05, 0.1
+                )
+                yn_soft_accuracy = weighted_soft_accuracy(
+                    yn_pred, yn_true_batch, 0.95, 0.05, 0.1
+                )
+                yp_soft_accuracy = weighted_soft_accuracy(
+                    yp_pred, yn_true_batch, 0.95, 0.05, 0.1
+                )
+
+                print(
+                    f"\nyo_soft_accuracy: {yo_soft_accuracy:.4f}, yp_soft_accuracy: {yp_soft_accuracy:.4f}, yn_soft_accuracy: {yn_soft_accuracy:.4f}"
+                )
 
             loss = harmoniccnn_loss(
                 yo_pred,
-                yn_pred,
+                yp_pred,
+                yp_pred,
                 yo_true_batch,
+                yn_true_batch,
+                yn_pred,
+                yn_true_batch,
+                yn_pred,
                 yn_true_batch,
                 label_smoothing=s.label_smoothing,
                 weighted=s.weighted,
                 positive_weight=s.positive_weight,
             )
-            
+
             total_loss = sum(loss.values())
 
             # If is the last batch of the last epoch, plot the prediction vs ground truth
@@ -125,7 +141,6 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
 
 
 def train():
-
     # Print random seed to debug potential errors due to randomness
     seed = random.randrange(sys.maxsize)
     random.seed(seed)
