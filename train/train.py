@@ -70,8 +70,11 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
         yp_pred = yp_pred.squeeze(1)
         if yn_pred is not None:
             yn_pred = yn_pred.squeeze(1)
+        yp_pred = yp_pred.squeeze(1)
+        if yn_pred is not None:
+            yn_pred = yn_pred.squeeze(1)
 
-            # calcola le weigehted soft accuracy per debug
+            # calcola le weighted soft accuracy per debug
             yo_soft_accuracy = weighted_soft_accuracy(
                 yo_pred, yo_true_batch, 0.95, 0.05, 0.1
             )
@@ -89,7 +92,10 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
         loss = harmoniccnn_loss(
             yo_pred,
             yp_pred,
+            yp_pred,
             yo_true_batch,
+            yn_true_batch,
+            yn_pred,
             yn_true_batch,
             yn_pred,
             yn_true_batch,
