@@ -10,7 +10,7 @@ def main():
     # Esegui il training del modello
     train()
     
-    evaluate("./model_saves/training_RNN/harmoniccnn_trained.pth", Split.VALIDATION)
+    #evaluate("./model_saves/training_RNN/harmoniccnn_trained.pth", Split.VALIDATION)
 
 
 if __name__ == "__main__":

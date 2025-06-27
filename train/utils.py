@@ -4,6 +4,7 @@ import mido
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
+from sklearn.metrics import f1_score
 from dataloader.Song import Song
 from settings import Settings as s
 from train.losses import harmoniccnn_loss
@@ -85,6 +86,13 @@ def weighted_soft_accuracy(
         weighted_correct = correct * weights
 
         return weighted_correct.sum().item() / weights.sum().item()
+
+
+def frame_f1(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5) -> float:
+    """F1-score per frame, con soglia per binarizzare le predizioni."""
+    y_pred_bin = (y_pred > threshold).float()
+    return f1_score(y_true.cpu(), y_pred_bin.cpu(), zero_division=0)
+
 
 
 def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yn_true):
