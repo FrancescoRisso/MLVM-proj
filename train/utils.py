@@ -61,6 +61,8 @@ def to_tensor(array):
 
 
 def to_numpy(tensor):
+    if tensor is None:
+        return None
     return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor
 
 
@@ -88,57 +90,63 @@ def weighted_soft_accuracy(
         return weighted_correct.sum().item() / weights.sum().item()
 
 
-def frame_f1(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5) -> float:
-    """F1-score per frame, con soglia per binarizzare le predizioni."""
-    y_pred_bin = (y_pred > threshold).float()
-    return f1_score(y_true.cpu(), y_pred_bin.cpu(), zero_division=0)
+def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true):
+    yo_pred_np = to_numpy(yo_pred)
+    yp_pred_np = to_numpy(yp_pred)
+    yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
 
-
-
-def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yn_true):
-
-    yo_pred_np = to_numpy(F.sigmoid(yo_pred))
     yo_true_np = to_numpy(yo_true)
-    yp_pred_np = to_numpy(F.sigmoid(yp_pred))
-    if yn_pred is not None:
-        yn_pred_np = to_numpy(F.sigmoid(yn_pred))
-    yn_true_np = to_numpy(yn_true)
+    yp_true_np = to_numpy(yp_true)
+    yn_true_np = None if s.remove_yn else to_numpy(yn_true)
 
-    plt.figure(figsize=(12, 8))
+    # Numero di righe: 2 per YO e YP, +1 se consideri YN
+    n_rows = 2 if s.remove_yn else 3
+    n_cols = 2  # sempre 2 colonne: ground truth e predizione
 
-    plt.subplot(3, 2, 1)
-    plt.imshow(yo_true_np, aspect="auto", cmap="viridis")
-    plt.title("YO Ground Truth")
-    plt.colorbar()
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
 
-    plt.subplot(3, 2, 2)
-    plt.imshow(yo_pred_np, aspect="auto", cmap="viridis")
-    plt.title("YO Prediction")
-    plt.colorbar()
+    # Plot YO
+    im0 = axes[0, 0].imshow(yo_true_np, aspect='auto', origin='lower')
+    axes[0, 0].set_title("YO Ground Truth")
+    fig.colorbar(im0, ax=axes[0, 0])
+    
+    im1 = axes[0, 1].imshow(yo_pred_np, aspect='auto', origin='lower')
+    axes[0, 1].set_title("YO Prediction")
+    fig.colorbar(im1, ax=axes[0, 1])
 
-    plt.subplot(3, 2, 3)
-    plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
-    plt.title("YP Ground Truth")
-    plt.colorbar()
+    # Plot YP
+    im2 = axes[1, 0].imshow(yp_true_np, aspect='auto', origin='lower')
+    axes[1, 0].set_title("YP Ground Truth")
+    fig.colorbar(im2, ax=axes[1, 0])
+    
+    im3 = axes[1, 1].imshow(yp_pred_np, aspect='auto', origin='lower')
+    axes[1, 1].set_title("YP Prediction")
+    fig.colorbar(im3, ax=axes[1, 1])
 
-    plt.subplot(3, 2, 4)
-    plt.imshow(yp_pred_np, aspect="auto", cmap="inferno")
-    plt.title("YP Prediction")
-    plt.colorbar()
+    # Plot YN (solo se non rimosso)
+    if not s.remove_yn:
+        im4 = axes[2, 0].imshow(yn_true_np, aspect='auto', origin='lower')
+        axes[2, 0].set_title("YN Ground Truth")
+        fig.colorbar(im4, ax=axes[2, 0])
+        
+        im5 = axes[2, 1].imshow(yn_pred_np, aspect='auto', origin='lower')
+        axes[2, 1].set_title("YN Prediction")
+        fig.colorbar(im5, ax=axes[2, 1])
 
-    if yn_pred is not None:
-        plt.subplot(3, 2, 5)
-        plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
-        plt.title("YN Ground Truth")
-        plt.colorbar()
-
-        plt.subplot(3, 2, 6)
-        plt.imshow(yn_pred_np, aspect="auto", cmap="inferno")
-        plt.title("YN Prediction")
-        plt.colorbar()
+    for ax_row in axes:
+        for ax in ax_row:
+            ax.axis('off')
 
     plt.tight_layout()
-    plt.show()
+    return fig
+
+
+def should_log_image(epoch):
+    # Logga ogni 2 epoche per le prime 10, poi ogni 5 epoche
+    if epoch <= 10:
+        return epoch % 2 == 0
+    else:
+        return epoch % 5 == 0
 
 
 def batch_prediction_plot():

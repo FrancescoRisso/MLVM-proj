@@ -2,7 +2,7 @@ import os
 import random
 import sys
 from datetime import datetime
-
+import matplotlib.pyplot as plt
 import torch
 import torch.optim as optim
 import tqdm
@@ -25,6 +25,7 @@ from train.utils import (
     plot_prediction_vs_ground_truth,
     to_tensor,
     weighted_soft_accuracy,
+    should_log_image
 )
 
 
@@ -32,6 +33,9 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
     model.train()
     running_loss = 0.0
     total_batches = len(dataloader)
+
+    # Variabili per salvare un batch di esempio per il logging immagini
+    example_outputs = None
 
     for batch_idx, batch in tqdm.tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
@@ -113,17 +117,17 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
                 
             total_loss = sum(loss.values())
 
-            # TODO PLOTTA SUL SITO NON IN CONSOLE
-            
-            # if batch_idx == total_batches - 1 and epoch == s.epochs - 1:
-            #     if not s.remove_yn:
-            #         plot_prediction_vs_ground_truth(
-            #             yo_pred[0], yp_pred[0], yo_true_batch[0], yp_true_batch[0]
-            #         )
-            #     else:
-            #         plot_prediction_vs_ground_truth(
-            #             yo_pred[0], yp_pred[0], yo_true_batch[0], yp_true_batch[0]
-            #         )
+            # Salvo un batch di esempio (ultimo batch dell’epoca) per loggare immagine su wandb
+            if batch_idx == total_batches - 1:
+                example_outputs = {
+                    "yo_pred": yo_pred.detach().cpu(),
+                    "yp_pred": yp_pred.detach().cpu(),
+                    "yn_pred": yn_pred.detach().cpu() if not s.remove_yn else None,
+                    "yo_true": yo_true_batch.detach().cpu(),
+                    "yp_true": yp_true_batch.detach().cpu(),
+                    "yn_true": yn_true_batch.detach().cpu() if not s.remove_yn else None,
+                }
+
         else:
             assert isinstance(model, HarmonicRNN)
             audios = audios.reshape((
@@ -135,6 +139,9 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
             pred_midi, pred_len = model(audios)
             total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
 
+            # Per RNN non gestisco il logging immagini per ora
+            if batch_idx == total_batches - 1:
+                example_outputs = None
 
         total_loss.backward()
         optimizer.step()
@@ -150,8 +157,8 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
         torch.save(model.state_dict(), path)
         print(f"Model saved as '{path}'")
 
-
-    return running_loss / total_batches
+    # Restituisco la loss media e il batch di esempio per logging immagini
+    return running_loss / total_batches, example_outputs
 
 
 def train():
@@ -195,16 +202,12 @@ def train():
     patience_counter = 0
 
     for epoch in range(s.epochs):
+        
         # Training
-        avg_train_loss = train_one_epoch(
+        avg_train_loss, example_outputs = train_one_epoch(
             model, train_loader, optimizer, device, epoch, session_dir
         )
         print(f"[Epoch {epoch+1}/{s.epochs}] Train Loss: {avg_train_loss:.4f}")
-
-        wandb.log({
-            "epoch": epoch + 1,
-            "train/loss": avg_train_loss,
-        })
 
         # Evaluation (Validation)
         if s.model == Model.CNN:
@@ -216,18 +219,32 @@ def train():
         avg_val_loss = evaluate(model_path, Split.VALIDATION)
         print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
 
+        # Secondo: un unico grafico combinato con entrambe le curve sotto "loss"
         wandb.log({
-            "epoch": epoch + 1,
-            "val/loss": avg_val_loss,
-        })
-
+            "loss/train": avg_train_loss,
+            "loss/val": avg_val_loss,
+        }, step=epoch+1)
+        
+        # Log immagini solo ogni tot epoche
+        if should_log_image(epoch) and example_outputs is not None:
+            fig = plot_prediction_vs_ground_truth(
+                example_outputs["yo_pred"][0], 
+                example_outputs["yp_pred"][0], 
+                example_outputs["yn_pred"][0] if example_outputs["yn_pred"] is not None else None,
+                example_outputs["yo_true"][0], 
+                example_outputs["yp_true"][0], 
+                example_outputs["yn_true"][0] if example_outputs["yn_true"] is not None else None,
+            )
+            wandb.log({"prediction_vs_gt": wandb.Image(fig, caption=f"Epoch {epoch+1}")})
+            plt.close(fig)
+            
         # Early Stopping Logic
         if avg_val_loss < best_val_loss - 1e-4:
             best_val_loss = avg_val_loss
             patience_counter = 0
             print(f"Validation loss improved to {best_val_loss:.4f}")
             
-            # Save best model checkpoint
+            # Salva il best model checkpoint
             best_model_path = os.path.join(session_dir, "best_model.pth")
             torch.save(model.state_dict(), best_model_path)
             print(f"Best model saved to {best_model_path}")

@@ -126,7 +126,8 @@ def evaluate(model_path, dataset):
 
             #modello deve essere cnn
             if s.model == Model.CNN:
-                print("Plotting predictions vs ground truth (first batch)...")
+                a=1 #mi serve solo come placeholder per non avere errori
+                #print("Plotting predictions vs ground truth (first batch)...")
                 # plot_prediction_vs_ground_truth(
                 #     yo_pred[0], yp_pred[0], yo_true_batch[0], yn_true_batch[0]
                 # )
