@@ -66,28 +66,39 @@ def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor
 
 
-def weighted_soft_accuracy(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
-    weight_positive: float = 0.95,
-    weight_negative: float = 0.05,
-    tolerance: float = 0.1,
-) -> float:
+def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
     """
-    Accuratezza pesata: le predizioni corrette per classi positive (1) valgono di più (0.95),
-    mentre quelle per classi negative (0) valgono meno (0.05).
-    E' intesa per essere usata come debug per vedere se la rete sta effettivamente migliorando
-    Non è intesa per essere usata come metrica di valutazione finale.
+    Accuracy continua: 1 - |pred - true| mediato.
+    Valori predetti vicini al target sono premiati di più.
     """
     with torch.no_grad():
-        diff = torch.abs(y_pred - y_true)
-        correct = (diff <= tolerance).float()
+        error = torch.abs(y_pred - y_true)
+        score = 1.0 - error  
+        return score.mean().item()
 
-        # Assegna pesi: 0.95 per le note attive, 0.05 per quelle inattive
-        weights = torch.where(y_true > 0.5, weight_positive, weight_negative)
-        weighted_correct = correct * weights
 
-        return weighted_correct.sum().item() / weights.sum().item()
+def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5):
+    with torch.no_grad():
+        y_pred_bin = (y_pred >= threshold).float()
+
+        tp = (y_pred_bin * y_true).sum().item()
+        fp = (y_pred_bin * (1 - y_true)).sum().item()
+        fn = ((1 - y_pred_bin) * y_true).sum().item()
+        tn = ((1 - y_pred_bin) * (1 - y_true)).sum().item()
+
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+
+        accuracy = soft_continuous_accuracy(y_pred, y_true)
+
+        return {
+            "TP": tp, "FP": fp, "FN": fn, "TN": tn,
+            "Precision": precision,
+            "Recall": recall,
+            "F1": f1,
+            "Accuracy": accuracy,
+        }
 
 
 def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true):
@@ -148,95 +159,124 @@ def should_log_image(epoch):
     else:
         return epoch % 5 == 0
 
+def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5):
+    """
+    Calcola TP, FP, FN, TN, Precision, Recall e F1 score per predizioni binarie.
 
-def batch_prediction_plot():
+    y_pred: tensor dopo la sigmoid, valori in [0,1]
+    y_true: tensor binario (0/1)
+    """
+    with torch.no_grad():
+        y_pred_bin = (y_pred >= threshold).float()
 
-    import os
-    from dataloader.dataset import DataSet, Split
-    from model.model import HarmonicCNN
-    from torch.utils.data import DataLoader
-    from settings import Settings as s
+        tp = (y_pred_bin * y_true).sum().item()
+        fp = (y_pred_bin * (1 - y_true)).sum().item()
+        fn = ((1 - y_pred_bin) * y_true).sum().item()
+        tn = ((1 - y_pred_bin) * (1 - y_true)).sum().item()
 
-    device = s.device
-    print(f"Eval on {device}")
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
 
-    model_path = os.path.join(
-        "model_saves", "training_2025-06-25_10-19-45", "harmoniccnn_epoch_5.pth"
-    )
+        return {
+            "TP": tp,
+            "FP": fp,
+            "FN": fn,
+            "TN": tn,
+            "Precision": precision,
+            "Recall": recall,
+            "F1": f1,
+        }
+        
 
-    run_single_batch_prediction_plot(
-        model_path=model_path,
-        model=HarmonicCNN().to(s.device),
-        dataloader=DataLoader(
-            DataSet(Split.TRAIN, s.seconds), batch_size=s.batch_size, shuffle=True
-        ),
-    )
+# def batch_prediction_plot():
+
+#     import os
+#     from dataloader.dataset import DataSet, Split
+#     from model.model import HarmonicCNN
+#     from torch.utils.data import DataLoader
+#     from settings import Settings as s
+
+#     device = s.device
+#     print(f"Eval on {device}")
+
+#     model_path = os.path.join(
+#         "model_saves", "training_2025-06-25_10-19-45", "harmoniccnn_epoch_5.pth"
+#     )
+
+#     run_single_batch_prediction_plot(
+#         model_path=model_path,
+#         model=HarmonicCNN().to(s.device),
+#         dataloader=DataLoader(
+#             DataSet(Split.TRAIN, s.seconds), batch_size=s.batch_size, shuffle=True
+#         ),
+#     )
 
 
-@torch.no_grad()
-def run_single_batch_prediction_plot(
-    model_path: str,
-    model: torch.nn.Module,
-    dataloader: torch.utils.data.DataLoader,
-    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-):
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
+# @torch.no_grad()
+# def run_single_batch_prediction_plot(
+#     model_path: str,
+#     model: torch.nn.Module,
+#     dataloader: torch.utils.data.DataLoader,
+#     device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+# ):
+#     model.load_state_dict(torch.load(model_path, map_location=device))
+#     model.to(device)
+#     model.eval()
 
-    # --- Carica un batch ---
-    batch = next(iter(dataloader))
-    (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
+#     # --- Carica un batch ---
+#     batch = next(iter(dataloader))
+#     (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
 
-    # --- Crea ground truth ---
-    midi = Song.from_np(
-        midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
-    ).get_midi()
-    yo_true, yn_true = midi_to_label_matrices(
-        midi, s.sample_rate, s.hop_length, n_bins=88
-    )
+#     # --- Crea ground truth ---
+#     midi = Song.from_np(
+#         midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
+#     ).get_midi()
+#     yo_true, yn_true = midi_to_label_matrices(
+#         midi, s.sample_rate, s.hop_length, n_bins=88
+#     )
 
-    # --- Input e target su device ---
-    input_audio = audios[0].to(device).unsqueeze(0)
-    yo_true_tensor = to_tensor(yo_true).to(device).squeeze(0)
-    yn_true_tensor = to_tensor(yn_true).to(device).squeeze(0)
+#     # --- Input e target su device ---
+#     input_audio = audios[0].to(device).unsqueeze(0)
+#     yo_true_tensor = to_tensor(yo_true).to(device).squeeze(0)
+#     yn_true_tensor = to_tensor(yn_true).to(device).squeeze(0)
 
-    # --- Predizione ---
-    yo_logits, yp_logits, yn_logits = model(input_audio)
-    yo_logits = yo_logits.squeeze(1)[0]
-    yp_logits = yp_logits.squeeze(1)[0]
-    if yn_logits is not None:
-        yn_logits = yn_logits.squeeze(1)[0]
+#     # --- Predizione ---
+#     yo_logits, yp_logits, yn_logits = model(input_audio)
+#     yo_logits = yo_logits.squeeze(1)[0]
+#     yp_logits = yp_logits.squeeze(1)[0]
+#     if yn_logits is not None:
+#         yn_logits = yn_logits.squeeze(1)[0]
 
-    # --- Applica sigmoid per accuratezze soft ---
-    yo_pred = torch.sigmoid(yo_logits)
-    yp_pred = torch.sigmoid(yp_logits) 
-    if yn_logits is not None:
-        yn_pred = torch.sigmoid(yn_logits)
+#     # --- Applica sigmoid per accuratezze soft ---
+#     yo_pred = torch.sigmoid(yo_logits)
+#     yp_pred = torch.sigmoid(yp_logits) 
+#     if yn_logits is not None:
+#         yn_pred = torch.sigmoid(yn_logits)
 
-    # --- Calcolo loss totale ---
-    loss_total = harmoniccnn_loss(
-        yo_logits=yo_logits,
-        yp_logits=yp_logits,
-        yo_true=yo_true_tensor,
-        yp_true=yn_true_tensor,
-        yn_logits=yn_logits,
-        yn_true=yn_true_tensor,
-        label_smoothing=0.2,
-        weighted=False,
-        positive_weight=0.5,
-    )
-    total_loss = sum(loss_total.values())
-    # --- Calcolo accuratezze ---
-    acc_yo = weighted_soft_accuracy(yo_pred, yo_true_tensor)
-    acc_yp = weighted_soft_accuracy(yp_pred, yn_true_tensor)
-    if yn_logits is not None:
-        acc_yn = weighted_soft_accuracy(yn_pred, yn_true_tensor)
+#     # --- Calcolo loss totale ---
+#     loss_total = harmoniccnn_loss(
+#         yo_logits=yo_logits,
+#         yp_logits=yp_logits,
+#         yo_true=yo_true_tensor,
+#         yp_true=yn_true_tensor,
+#         yn_logits=yn_logits,
+#         yn_true=yn_true_tensor,
+#         label_smoothing=0.2,
+#         weighted=False,
+#         positive_weight=0.5,
+#     )
+#     total_loss = sum(loss_total.values())
+#     # --- Calcolo accuratezze ---
+#     acc_yo = weighted_soft_accuracy(yo_pred, yo_true_tensor)
+#     acc_yp = weighted_soft_accuracy(yp_pred, yn_true_tensor)
+#     if yn_logits is not None:
+#         acc_yn = weighted_soft_accuracy(yn_pred, yn_true_tensor)
 
-    # --- Stampa risultati ---
-    print(f"Total Loss: {total_loss.item():.4f}")
-    print(f"YO Soft Accuracy: {acc_yo:.4f}")
-    print(f"YN Soft Accuracy: {acc_yn:.4f}")
+#     # --- Stampa risultati ---
+#     print(f"Total Loss: {total_loss.item():.4f}")
+#     print(f"YO Soft Accuracy: {acc_yo:.4f}")
+#     print(f"YN Soft Accuracy: {acc_yn:.4f}")
 
-    # --- Plot ---
-    plot_prediction_vs_ground_truth(yo_pred, yp_pred, yo_true_tensor, yn_true_tensor)
+#     # --- Plot ---
+#     plot_prediction_vs_ground_truth(yo_pred, yp_pred, yo_true_tensor, yn_true_tensor)

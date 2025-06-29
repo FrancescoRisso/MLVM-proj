@@ -15,7 +15,6 @@ from train.utils import (
     midi_to_label_matrices,
     plot_prediction_vs_ground_truth,
     to_tensor,
-    weighted_soft_accuracy,
 )
 
 
