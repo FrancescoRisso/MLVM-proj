@@ -73,11 +73,13 @@ def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> floa
     """
     with torch.no_grad():
         error = torch.abs(y_pred - y_true)
-        score = 1.0 - error  
+        score = 1.0 - error
         return score.mean().item()
 
 
-def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5):
+def binary_classification_metrics(
+    y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5
+):
     with torch.no_grad():
         y_pred_bin = (y_pred >= threshold).float()
 
@@ -93,7 +95,10 @@ def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, th
         accuracy = soft_continuous_accuracy(y_pred, y_true)
 
         return {
-            "TP": tp, "FP": fp, "FN": fn, "TN": tn,
+            "TP": tp,
+            "FP": fp,
+            "FN": fn,
+            "TN": tn,
             "Precision": precision,
             "Recall": recall,
             "F1": f1,
@@ -101,7 +106,9 @@ def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, th
         }
 
 
-def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true):
+def plot_prediction_vs_ground_truth(
+    yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true
+):
     yo_pred_np = to_numpy(yo_pred)
     yp_pred_np = to_numpy(yp_pred)
     yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
@@ -117,36 +124,36 @@ def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yp_true,
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
 
     # Plot YO
-    im0 = axes[0, 0].imshow(yo_true_np, aspect='auto', origin='lower')
+    im0 = axes[0, 0].imshow(yo_true_np, aspect="auto", origin="lower")
     axes[0, 0].set_title("YO Ground Truth")
     fig.colorbar(im0, ax=axes[0, 0])
-    
-    im1 = axes[0, 1].imshow(yo_pred_np, aspect='auto', origin='lower')
+
+    im1 = axes[0, 1].imshow(yo_pred_np, aspect="auto", origin="lower")
     axes[0, 1].set_title("YO Prediction")
     fig.colorbar(im1, ax=axes[0, 1])
 
     # Plot YP
-    im2 = axes[1, 0].imshow(yp_true_np, aspect='auto', origin='lower')
+    im2 = axes[1, 0].imshow(yp_true_np, aspect="auto", origin="lower")
     axes[1, 0].set_title("YP Ground Truth")
     fig.colorbar(im2, ax=axes[1, 0])
-    
-    im3 = axes[1, 1].imshow(yp_pred_np, aspect='auto', origin='lower')
+
+    im3 = axes[1, 1].imshow(yp_pred_np, aspect="auto", origin="lower")
     axes[1, 1].set_title("YP Prediction")
     fig.colorbar(im3, ax=axes[1, 1])
 
     # Plot YN (solo se non rimosso)
     if not s.remove_yn:
-        im4 = axes[2, 0].imshow(yn_true_np, aspect='auto', origin='lower')
+        im4 = axes[2, 0].imshow(yn_true_np, aspect="auto", origin="lower")
         axes[2, 0].set_title("YN Ground Truth")
         fig.colorbar(im4, ax=axes[2, 0])
-        
-        im5 = axes[2, 1].imshow(yn_pred_np, aspect='auto', origin='lower')
+
+        im5 = axes[2, 1].imshow(yn_pred_np, aspect="auto", origin="lower")
         axes[2, 1].set_title("YN Prediction")
         fig.colorbar(im5, ax=axes[2, 1])
 
     for ax_row in axes:
         for ax in ax_row:
-            ax.axis('off')
+            ax.axis("off")
 
     plt.tight_layout()
     return fig
@@ -159,7 +166,10 @@ def should_log_image(epoch):
     else:
         return epoch % 5 == 0
 
-def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5):
+
+def binary_classification_metrics(
+    y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5
+):
     """
     Calcola TP, FP, FN, TN, Precision, Recall e F1 score per predizioni binarie.
 
@@ -187,7 +197,7 @@ def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, th
             "Recall": recall,
             "F1": f1,
         }
-        
+
 
 # def batch_prediction_plot():
 
@@ -250,7 +260,7 @@ def binary_classification_metrics(y_pred: torch.Tensor, y_true: torch.Tensor, th
 
 #     # --- Applica sigmoid per accuratezze soft ---
 #     yo_pred = torch.sigmoid(yo_logits)
-#     yp_pred = torch.sigmoid(yp_logits) 
+#     yp_pred = torch.sigmoid(yp_logits)
 #     if yn_logits is not None:
 #         yn_pred = torch.sigmoid(yn_logits)
 

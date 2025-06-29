@@ -26,13 +26,16 @@ from train.utils import (
     to_tensor,
     binary_classification_metrics,
     soft_continuous_accuracy,
-    should_log_image
+    should_log_image,
 )
 
-def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, device, epoch, session_dir):
-    
+
+def train_one_epoch(
+    model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, device, epoch, session_dir
+):
+
     model.train()
-    
+
     running_loss = 0.0
     total_accuracy = 0.0
     total_batches = len(dataloader)
@@ -85,7 +88,7 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
             yp_pred = yp_pred.squeeze(1)
             if not s.remove_yn:
                 yn_pred = yn_pred.squeeze(1)
-  
+
             batch_metrics = binary_classification_metrics(yp_pred_sig, yp_true_batch)
             for key in ["TP", "FP", "FN", "TN"]:
                 yp_metrics_accumulator[key] += batch_metrics[key]
@@ -96,15 +99,22 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
 
             if not s.remove_yn:
                 loss = harmoniccnn_loss(
-                    yo_pred, yp_pred, yo_true_batch, yp_true_batch,
-                    yn_pred, yn_true_batch,
+                    yo_pred,
+                    yp_pred,
+                    yo_true_batch,
+                    yp_true_batch,
+                    yn_pred,
+                    yn_true_batch,
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
                     positive_weight=s.positive_weight,
                 )
             else:
                 loss = harmoniccnn_loss(
-                    yo_pred, yp_pred, yo_true_batch, yp_true_batch,
+                    yo_pred,
+                    yp_pred,
+                    yo_true_batch,
+                    yp_true_batch,
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
                     positive_weight=s.positive_weight,
@@ -119,7 +129,9 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
                     "yn_pred": yn_pred_sig.detach().cpu() if not s.remove_yn else None,
                     "yo_true": yo_true_batch.detach().cpu(),
                     "yp_true": yp_true_batch.detach().cpu(),
-                    "yn_true": yn_true_batch.detach().cpu() if not s.remove_yn else None,
+                    "yn_true": (
+                        yn_true_batch.detach().cpu() if not s.remove_yn else None
+                    ),
                 }
 
         else:
@@ -136,11 +148,17 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
 
     if s.save_model:
         os.makedirs(session_dir, exist_ok=True)
-        path = os.path.join(session_dir, "harmoniccnn.pth" if s.model == Model.CNN else "harmonicrnn.pth")
+        path = os.path.join(
+            session_dir,
+            "harmoniccnn.pth" if s.model == Model.CNN else "harmonicrnn.pth",
+        )
         torch.save(model.state_dict(), path)
         print(f"Model saved as '{path}'")
 
-    # Calcolo metriche globali
+    if s.model == Model.RNN:
+        return running_loss / total_batches, None, None
+
+    # Calcolo metriche globali per CNN
     tp = yp_metrics_accumulator["TP"]
     fp = yp_metrics_accumulator["FP"]
     fn = yp_metrics_accumulator["FN"]
@@ -149,7 +167,7 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
     recall = tp / (tp + fn + 1e-8)
     f1 = 2 * precision * recall / (precision + recall + 1e-8)
     average_soft_accuracy = total_accuracy / total_batches
-    
+
     print(f"[YP] Epoch Metrics")
     print(f"TP: {tp:.0f}, FP: {fp:.0f}, FN: {fn:.0f}, TN: {tn:.0f}")
     print(f"Average accuracy: {average_soft_accuracy:.4f}")
@@ -158,16 +176,20 @@ def train_one_epoch(model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, dev
     print(f"F1 Score: {f1:.4f}")
 
     # Return loss + example + metriche
-    return running_loss / total_batches, example_outputs, {
-        "yp_TP": tp,
-        "yp_FP": fp,
-        "yp_FN": fn,
-        "yp_TN": tn,
-        "yp_accuracy": accuracy,
-        "yp_precision": precision,
-        "yp_recall": recall,
-        "yp_f1": f1,
-    }
+    return (
+        running_loss / total_batches,
+        example_outputs,
+        {
+            "yp_TP": tp,
+            "yp_FP": fp,
+            "yp_FN": fn,
+            "yp_TN": tn,
+            "yp_accuracy": accuracy,
+            "yp_precision": precision,
+            "yp_recall": recall,
+            "yp_f1": f1,
+        },
+    )
 
 
 def train():
@@ -190,7 +212,7 @@ def train():
             "learning_rate": s.learning_rate,
             "model": s.model.name,
             "seed": seed,
-        }
+        },
     )
 
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)
@@ -223,30 +245,45 @@ def train():
         avg_val_loss = evaluate(model_path, Split.VALIDATION)
         print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
 
-        wandb.log({
-            "loss/train": avg_train_loss,
-            "loss/val": avg_val_loss,
-            "average accuracy/train_yp": train_metrics["yp_accuracy"],
-            "precision/train_yp": train_metrics["yp_precision"],
-            "recall/train_yp": train_metrics["yp_recall"],
-            "f1/train_yp": train_metrics["yp_f1"],
-            "TP/train_yp": train_metrics["yp_TP"],
-            "FP/train_yp": train_metrics["yp_FP"],
-            "FN/train_yp": train_metrics["yp_FN"],
-            "TN/train_yp": train_metrics["yp_TN"],
-        }, step=epoch+1)
-
-        if should_log_image(epoch) and example_outputs is not None:
-            fig = plot_prediction_vs_ground_truth(
-                example_outputs["yo_pred"][0],
-                example_outputs["yp_pred"][0],
-                example_outputs["yn_pred"][0] if example_outputs["yn_pred"] is not None else None,
-                example_outputs["yo_true"][0],
-                example_outputs["yp_true"][0],
-                example_outputs["yn_true"][0] if example_outputs["yn_true"] is not None else None,
+        if s.model == Model.CNN:
+            wandb.log(
+                {
+                    "loss/train": avg_train_loss,
+                    "loss/val": avg_val_loss,
+                    "average accuracy/train_yp": train_metrics["yp_accuracy"],
+                    "precision/train_yp": train_metrics["yp_precision"],
+                    "recall/train_yp": train_metrics["yp_recall"],
+                    "f1/train_yp": train_metrics["yp_f1"],
+                    "TP/train_yp": train_metrics["yp_TP"],
+                    "FP/train_yp": train_metrics["yp_FP"],
+                    "FN/train_yp": train_metrics["yp_FN"],
+                    "TN/train_yp": train_metrics["yp_TN"],
+                },
+                step=epoch + 1,
             )
-            wandb.log({"prediction_vs_gt": wandb.Image(fig, caption=f"Epoch {epoch+1}")}, step=epoch+1)
-            plt.close(fig)
+
+            if should_log_image(epoch) and example_outputs is not None:
+                fig = plot_prediction_vs_ground_truth(
+                    example_outputs["yo_pred"][0],
+                    example_outputs["yp_pred"][0],
+                    (
+                        example_outputs["yn_pred"][0]
+                        if example_outputs["yn_pred"] is not None
+                        else None
+                    ),
+                    example_outputs["yo_true"][0],
+                    example_outputs["yp_true"][0],
+                    (
+                        example_outputs["yn_true"][0]
+                        if example_outputs["yn_true"] is not None
+                        else None
+                    ),
+                )
+                wandb.log(
+                    {"prediction_vs_gt": wandb.Image(fig, caption=f"Epoch {epoch+1}")},
+                    step=epoch + 1,
+                )
+                plt.close(fig)
 
         if avg_val_loss < best_val_loss - 1e-4:
             best_val_loss = avg_val_loss
@@ -260,5 +297,7 @@ def train():
             patience_counter += 1
             print(f"No improvement. Patience: {patience_counter}/{patience}")
             if patience_counter >= patience:
-                print(f"Early stopping at epoch {epoch+1}. Best val loss: {best_val_loss:.4f}")
+                print(
+                    f"Early stopping at epoch {epoch+1}. Best val loss: {best_val_loss:.4f}"
+                )
                 break

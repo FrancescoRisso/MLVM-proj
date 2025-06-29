@@ -58,7 +58,7 @@ def evaluate(model_path, dataset):
                 yo_true_batch = []
                 yn_true_batch = []
                 yp_true_batch = []
-                
+
                 audio_input_batch = []
 
                 for i in range(midis_np.shape[0]):
@@ -74,14 +74,14 @@ def evaluate(model_path, dataset):
                     yp_true_batch.append(to_tensor(yp).to(device))
                     if not s.remove_yn:
                         yn_true_batch.append(to_tensor(yn).to(device))
-                        
+
                     audio_input_batch.append(audios[i].to(device))
 
                 yo_true_batch = torch.stack(yo_true_batch)
                 yp_true_batch = torch.stack(yp_true_batch)
                 if not s.remove_yn:
                     yn_true_batch = torch.stack(yn_true_batch)
-                    
+
                 audio_input_batch = torch.stack(audio_input_batch)
 
             yo_pred, yp_pred, yn_pred = model(audio_input_batch)
@@ -93,11 +93,11 @@ def evaluate(model_path, dataset):
 
             if not s.remove_yn:
                 loss = harmoniccnn_loss(
-                    yo_pred,       # yo_logits
-                    yp_pred,       # yp_logits
+                    yo_pred,  # yo_logits
+                    yp_pred,  # yp_logits
                     yo_true_batch,  # yo_true
                     yp_true_batch,  # yp_true
-                    yn_pred,        # yn_logits (opzionale)
+                    yn_pred,  # yn_logits (opzionale)
                     yn_true_batch,  # yn_true (opzionale)
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
@@ -105,10 +105,10 @@ def evaluate(model_path, dataset):
                 )
             else:
                 loss = harmoniccnn_loss(
-                    yo_pred,        # yo_logits
-                    yp_pred,        # yp_logits
-                    yo_true_batch,   # yo_true
-                    yp_true_batch,   # yp_true
+                    yo_pred,  # yo_logits
+                    yp_pred,  # yp_logits
+                    yo_true_batch,  # yo_true
+                    yp_true_batch,  # yp_true
                     # yn_logits e yn_true omessi
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
@@ -123,10 +123,10 @@ def evaluate(model_path, dataset):
             # all_acc_yo.append(acc_yo)
             # all_acc_yn.append(acc_yn)
 
-            #modello deve essere cnn
+            # modello deve essere cnn
             if s.model == Model.CNN:
-                a=1 #mi serve solo come placeholder per non avere errori
-                #print("Plotting predictions vs ground truth (first batch)...")
+                a = 1  # mi serve solo come placeholder per non avere errori
+                # print("Plotting predictions vs ground truth (first batch)...")
                 # plot_prediction_vs_ground_truth(
                 #     yo_pred[0], yp_pred[0], yo_true_batch[0], yn_true_batch[0]
                 # )
