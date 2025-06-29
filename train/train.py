@@ -75,6 +75,7 @@ def train_one_epoch(
             yp_true_batch = torch.stack(yp_true_batch)
             if not s.remove_yn:
                 yn_true_batch = torch.stack(yn_true_batch)
+                
             audio_input_batch = torch.stack(audio_input_batch)
 
             (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
@@ -97,28 +98,17 @@ def train_one_epoch(
             total_accuracy += accuracy
             print(f"Soft Continuous Accuracy: {accuracy:.4f}")
 
-            if not s.remove_yn:
-                loss = harmoniccnn_loss(
-                    yo_pred,
-                    yp_pred,
-                    yo_true_batch,
-                    yp_true_batch,
-                    yn_pred,
-                    yn_true_batch,
-                    label_smoothing=s.label_smoothing,
-                    weighted=s.weighted,
-                    positive_weight=s.positive_weight,
-                )
-            else:
-                loss = harmoniccnn_loss(
-                    yo_pred,
-                    yp_pred,
-                    yo_true_batch,
-                    yp_true_batch,
-                    label_smoothing=s.label_smoothing,
-                    weighted=s.weighted,
-                    positive_weight=s.positive_weight,
-                )
+            loss = harmoniccnn_loss(
+                yo_pred,
+                yp_pred,
+                yo_true_batch,
+                yp_true_batch,
+                yn_pred,
+                yn_true_batch,
+                label_smoothing=s.label_smoothing,
+                weighted=s.weighted,
+                positive_weight=s.positive_weight,
+            )
 
             total_loss = sum(loss.values())
 
@@ -212,6 +202,8 @@ def train():
             "learning_rate": s.learning_rate,
             "model": s.model.name,
             "seed": seed,
+            "pre_trained": True if s.pre_trained_model_path else False,
+            "pre_trained_model_path": s.pre_trained_model_path if s.pre_trained_model_path else None,
         },
     )
 
@@ -284,6 +276,9 @@ def train():
                     step=epoch + 1,
                 )
                 plt.close(fig)
+                
+        else: #RNN TODO
+            pass
 
         if avg_val_loss < best_val_loss - 1e-4:
             best_val_loss = avg_val_loss
