@@ -38,10 +38,17 @@ class DataSet:
 
         self.__duration = duration
 
+        self.__single_audio = split == Split.SINGLE_AUDIO
+        if self.__single_audio:
+            split = Split.VALIDATION
+
         folder_path = os.path.join(Settings.dataset_folder, split.value, "midi")
         self.__data = [
             os.path.join(folder_path, file) for file in os.listdir(folder_path)
         ]
+
+        if self.__single_audio:
+            self.__data = [self.__data[0]]
 
     def __len__(self) -> int:
         """
@@ -86,6 +93,9 @@ class DataSet:
 
         crop_region = song.choose_cut_boundary(self.__duration)
         if crop_region is not None:
+            if self.__single_audio:
+                crop_region = (0, crop_region[1]-crop_region[0])
+            
             song = song.cut(crop_region[0], crop_region[1])
 
         if Settings.generate_audio_on_download:
