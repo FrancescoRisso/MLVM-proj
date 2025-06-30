@@ -1,5 +1,5 @@
 from train.train import train
-
+from settings import Settings as s
 
 def main():
     import torch

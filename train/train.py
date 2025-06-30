@@ -107,7 +107,6 @@ def train_one_epoch(
                 yn_true_batch,
                 label_smoothing=s.label_smoothing,
                 weighted=s.weighted,
-                positive_weight=s.positive_weight,
             )
 
             total_loss = sum(loss.values())
@@ -234,7 +233,7 @@ def train():
             model_path = os.path.join(session_dir, "harmonicrnn.pth")
 
         print("Evaluating on validation set...")
-        avg_val_loss = evaluate(model_path, Split.VALIDATION)
+        avg_val_loss, example_outputs_val, val_metrics  = evaluate(model_path, Split.VALIDATION)
         print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
 
         if s.model == Model.CNN:
@@ -242,14 +241,24 @@ def train():
                 {
                     "loss/train": avg_train_loss,
                     "loss/val": avg_val_loss,
-                    "metrics/average accuracy/train_yp": train_metrics["yp_accuracy"],
-                    "metrics/precision/train_yp": train_metrics["yp_precision"],
-                    "metrics/recall/train_yp": train_metrics["yp_recall"],
-                    "metrics/f1/train_yp": train_metrics["yp_f1"],
-                    "metrics/TP/train_yp": train_metrics["yp_TP"],
-                    "metrics/FP/train_yp": train_metrics["yp_FP"],
-                    "metrics/FN/train_yp": train_metrics["yp_FN"],
-                    "metrics/TN/train_yp": train_metrics["yp_TN"],
+
+                    "metrics_TRAIN/average accuracy/train_yp": train_metrics["yp_accuracy"],
+                    "metrics_TRAIN/precision/train_yp": train_metrics["yp_precision"],
+                    "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
+                    "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
+                    "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
+                    "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
+                    "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
+                    "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
+
+                    "metrics_VAL/average accuracy/train_yp": train_metrics["yp_accuracy"],
+                    "metrics_VAL/precision/train_yp": train_metrics["yp_precision"],
+                    "metrics_VAL/recall/train_yp": train_metrics["yp_recall"],
+                    "metrics_VAL/f1/train_yp": train_metrics["yp_f1"],
+                    "metrics_VAL/TP/train_yp": train_metrics["yp_TP"],
+                    "metrics_VAL/FP/train_yp": train_metrics["yp_FP"],
+                    "metrics_VAL/FN/train_yp": train_metrics["yp_FN"],
+                    "metrics_VAL/TN/train_yp": train_metrics["yp_TN"],
                 },
                 step=epoch + 1,
             )

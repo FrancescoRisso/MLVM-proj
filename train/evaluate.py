@@ -15,6 +15,8 @@ from train.utils import (
     midi_to_label_matrices,
     plot_prediction_vs_ground_truth,
     to_tensor,
+    soft_continuous_accuracy,
+    binary_classification_metrics,
 )
 
 
@@ -44,10 +46,10 @@ def evaluate(model_path, dataset):
     test_loader = DataLoader(test_dataset, batch_size=s.batch_size, shuffle=False)
 
     running_loss = 0.0
+    running_acc_yp = 0.0
     total_batches = len(test_loader)
-
-    all_acc_yo = []
-    all_acc_yn = []
+    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
+    example_outputs = {}
 
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(test_loader), total=total_batches):
@@ -84,34 +86,51 @@ def evaluate(model_path, dataset):
 
                 audio_input_batch = torch.stack(audio_input_batch)
 
+                    
                 yo_pred, yp_pred, yn_pred = model(audio_input_batch)
+
+                yo_pred_sig = torch.sigmoid(yo_pred).squeeze(1)
+                yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
+                if not s.remove_yn:
+                    yn_pred_sig = torch.sigmoid(yn_pred).squeeze(1)
+
                 yo_pred = yo_pred.squeeze(1)
-                yp_pred = yp_pred.squeeze(1)
                 yp_pred = yp_pred.squeeze(1)
                 if not s.remove_yn:
                     yn_pred = yn_pred.squeeze(1)
 
+                acc_yp = soft_continuous_accuracy(yp_pred, yp_true_batch)
+                running_acc_yp += acc_yp
+
+                batch_metrics = binary_classification_metrics(yp_pred_sig, yp_true_batch)
+                for key in ["TP", "FP", "FN", "TN"]:
+                    yp_metrics_accumulator[key] += batch_metrics[key]
 
                 loss = harmoniccnn_loss(
-                    yo_pred,  # yo_logits
-                    yp_pred,  # yp_logits
-                    yo_true_batch,  # yo_true
-                    yp_true_batch,  # yp_true
-                    yn_pred,  # yn_logits (opzionale)
-                    yn_true_batch,  # yn_true (opzionale)
+                    yo_pred,            # yo_logits
+                    yp_pred,            # yp_logits
+                    yo_true_batch,      # yo_true
+                    yp_true_batch,      # yp_true
+                    yn_pred,            # yn_logits (opzionale)
+                    yn_true_batch,      # yn_true (opzionale)
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
-                    positive_weight=s.positive_weight,
                 )
 
-
-                # TODO MIGLIORARE IL CALCOLO DELLA SOFT ACCURACY
-                # acc_yo = weighted_soft_accuracy(yo_pred, yo_true_batch)
-                # acc_yn = weighted_soft_accuracy(yn_pred, yn_true_batch)
+                if batch_idx == total_batches - 1:
+                    example_outputs = {
+                        "yo_pred": yo_pred_sig.detach().cpu(),
+                        "yp_pred": yp_pred_sig.detach().cpu(),
+                        "yn_pred": yn_pred_sig.detach().cpu() if not s.remove_yn else None,
+                        "yo_true": yo_true_batch.detach().cpu(),
+                        "yp_true": yp_true_batch.detach().cpu(),
+                        "yn_true": (
+                            yn_true_batch.detach().cpu() if not s.remove_yn else None
+                        ),
+                    }
 
                 running_loss += sum(loss.values())
-                # all_acc_yo.append(acc_yo)
-                # all_acc_yn.append(acc_yn)
+
 
 
 
@@ -131,15 +150,55 @@ def evaluate(model_path, dataset):
                 )
 
     avg_loss = running_loss / total_batches
+    
 
     if s.model == Model.CNN:
-        avg_acc_yo = np.mean(all_acc_yo)
-        avg_acc_yn = np.mean(all_acc_yn)
+        
+        # Calcolo metriche globali per CNN
+        tp = yp_metrics_accumulator["TP"]
+        fp = yp_metrics_accumulator["FP"]
+        fn = yp_metrics_accumulator["FN"]
+        tn = yp_metrics_accumulator["TN"]
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+        avg_acc_yp = running_acc_yp / total_batches
 
-        print(
-            f"[Evaluation] Loss: {avg_loss:.4f} | YO Acc: {avg_acc_yo:.4f} | YN Acc: {avg_acc_yn:.4f}"
-        )
+        print(f"[YP] Validation Epoch Metrics")
+        print(f"TP: {tp:.0f}, FP: {fp:.0f}, FN: {fn:.0f}, TN: {tn:.0f}")
+        print(f"Average accuracy: {avg_acc_yp:.4f}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1 Score: {f1:.4f}")
+
+
+        return (
+            avg_loss, 
+            example_outputs, 
+            {
+            "yp_TP": tp,
+            "yp_FP": fp,
+            "yp_FN": fn,
+            "yp_TN": tn,
+            "yp_accuracy": avg_acc_yp,
+            "yp_precision": precision,
+            "yp_recall": recall,
+            "yp_f1": f1,
+        },)
+    
     else:  # RNN TODO
         print(f"[Evaluation] Loss: {avg_loss:.4f}")
 
     return avg_loss
+
+
+
+def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
+    """
+    Accuracy continua: 1 - |pred - true| mediato.
+    Valori predetti vicini al target sono premiati di più.
+    """
+    with torch.no_grad():
+        error = torch.abs(y_pred - y_true)
+        score = 1.0 - error
+        return score.mean().item()
