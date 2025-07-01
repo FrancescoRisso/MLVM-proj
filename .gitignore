@@ -185,3 +185,6 @@ model_saves/
 
 # wandb
 wandb/
+
+# audio for plotting 
+shouldbesame.wav

@@ -2,12 +2,9 @@ import numpy as np
 import torch
 import mido
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 
-from sklearn.metrics import f1_score
 from dataloader.Song import Song
 from settings import Settings as s
-from train.losses import harmoniccnn_loss
 
 
 def midi_to_label_matrices(mido_midi, sample_rate, hop_length, n_bins=88):
@@ -160,11 +157,7 @@ def plot_prediction_vs_ground_truth(
 
 
 def should_log_image(epoch):
-    # Logga ogni 2 epoche per le prime 10, poi ogni 5 epoche
-    if epoch <= 10:
-        return epoch % 2 == 0
-    else:
-        return epoch % 5 == 0
+    return epoch % 2 == 0
 
 
 def binary_classification_metrics(
@@ -197,3 +190,37 @@ def binary_classification_metrics(
             "Recall": recall,
             "F1": f1,
         }
+
+
+@torch.no_grad()
+def plot_fixed_sample(model, sample, device):
+    (midi_np, tempo, ticks_per_beat, num_messages), audio = sample
+    audio = torch.from_numpy(audio) if isinstance(audio, np.ndarray) else audio
+    audio = audio.unsqueeze(0).to(device)
+
+    midi = Song.from_np(midi_np, tempo, ticks_per_beat, num_messages).get_midi()
+    yo_true, yp_true = midi_to_label_matrices(
+        midi, s.sample_rate, s.hop_length, n_bins=88
+    )
+    yn_true = yp_true if s.remove_yn else yo_true
+
+    yo_true = to_tensor(yo_true).unsqueeze(0).to(device)
+    yp_true = to_tensor(yp_true).unsqueeze(0).to(device)
+    yn_true = to_tensor(yn_true).unsqueeze(0).to(device) if not s.remove_yn else None
+
+    yo_pred, yp_pred, yn_pred = model(audio)
+
+    yo_pred = torch.sigmoid(yo_pred).squeeze(1).cpu()
+    yp_pred = torch.sigmoid(yp_pred).squeeze(1).cpu()
+    yn_pred = torch.sigmoid(yn_pred).squeeze(1).cpu() if not s.remove_yn else None
+
+    fig = plot_prediction_vs_ground_truth(
+        yo_pred[0],
+        yp_pred[0],
+        yn_pred[0] if yn_pred is not None else None,
+        yo_true.cpu()[0],
+        yp_true.cpu()[0],
+        yn_true.cpu()[0] if yn_true is not None else None,
+    )
+
+    return fig

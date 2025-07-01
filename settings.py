@@ -9,8 +9,8 @@ audio_font_folder = os.path.join(cur_dir, "audio-fonts")
 
 
 class Model(Enum):
-    CNN=0
-    RNN=1
+    CNN = 0
+    RNN = 1
 
 
 class Settings:
@@ -22,7 +22,7 @@ class Settings:
     test_folder = "test"
 
     # dataset downloading settings
-    generate_audio_on_download = True  # see note below
+    generate_audio_on_download = False  # see note below
     metadata_files_to_keep = [
         "LICENSE",
         "README",
@@ -53,11 +53,15 @@ class Settings:
     learning_rate = 1e-4
     label_smoothing = 0.0
     weighted = True
-    positive_weight = 0.95
-    positive_weight_yp = 0.60
-    positive_weight_yo = 0.95
+    positive_weight_yp = 0.55
+    positive_weight_yo = 0.90
     positive_weight_yn = 0.5
     save_model = True
+
+    # Training on single element
+    single_element_training = (
+        False  # if True, the model will be trained on a single element
+    )
 
     # RNN settings
     hidden_size = 10000  # must be even

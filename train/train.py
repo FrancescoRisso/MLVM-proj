@@ -22,11 +22,11 @@ from train.rnn_losses import np_midi_loss
 from train.evaluate import evaluate
 from train.utils import (
     midi_to_label_matrices,
-    plot_prediction_vs_ground_truth,
     to_tensor,
     binary_classification_metrics,
     soft_continuous_accuracy,
     should_log_image,
+    plot_fixed_sample,
 )
 
 
@@ -39,7 +39,6 @@ def train_one_epoch(
     running_loss = 0.0
     total_accuracy = 0.0
     total_batches = len(dataloader)
-    example_outputs = None
 
     # Accumulatore globale per le metriche di YP
     yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
@@ -75,15 +74,12 @@ def train_one_epoch(
             yp_true_batch = torch.stack(yp_true_batch)
             if not s.remove_yn:
                 yn_true_batch = torch.stack(yn_true_batch)
-                
+
             audio_input_batch = torch.stack(audio_input_batch)
 
             (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
 
-            yo_pred_sig = torch.sigmoid(yo_pred).squeeze(1)
             yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
-            if not s.remove_yn:
-                yn_pred_sig = torch.sigmoid(yn_pred).squeeze(1)
 
             yo_pred = yo_pred.squeeze(1)
             yp_pred = yp_pred.squeeze(1)
@@ -111,25 +107,13 @@ def train_one_epoch(
 
             total_loss = sum(loss.values())
 
-            if batch_idx == total_batches - 1:
-                example_outputs = {
-                    "yo_pred": yo_pred_sig.detach().cpu(),
-                    "yp_pred": yp_pred_sig.detach().cpu(),
-                    "yn_pred": yn_pred_sig.detach().cpu() if not s.remove_yn else None,
-                    "yo_true": yo_true_batch.detach().cpu(),
-                    "yp_true": yp_true_batch.detach().cpu(),
-                    "yn_true": (
-                        yn_true_batch.detach().cpu() if not s.remove_yn else None
-                    ),
-                }
 
         else:
             assert isinstance(model, HarmonicRNN)
             audios = audios.reshape((audios.shape[0], -1, s.sample_rate))
             pred_midi, pred_len = model(audios)
             total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
-            if batch_idx == total_batches - 1:
-                example_outputs = None
+
 
         total_loss.backward()
         optimizer.step()
@@ -164,10 +148,8 @@ def train_one_epoch(
     print(f"Recall: {recall:.4f}")
     print(f"F1 Score: {f1:.4f}")
 
-    # Return loss + example + metriche
     return (
         running_loss / total_batches,
-        example_outputs,
         {
             "yp_TP": tp,
             "yp_FP": fp,
@@ -202,7 +184,10 @@ def train():
             "model": s.model.name,
             "seed": seed,
             "pre_trained": True if s.pre_trained_model_path else False,
-            "pre_trained_model_path": s.pre_trained_model_path if s.pre_trained_model_path else None,
+            "pre_trained_model_path": (
+                s.pre_trained_model_path if s.pre_trained_model_path else None
+            ),
+            "single_element_training": s.single_element_training,
         },
     )
 
@@ -213,7 +198,11 @@ def train():
 
     optimizer = optim.Adam(model.parameters(), lr=s.learning_rate)
 
-    train_dataset = DataSet(Split.TRAIN, s.seconds)
+    train_dataset = (
+        DataSet(Split.TRAIN, s.seconds)
+        if not s.single_element_training
+        else DataSet(Split.SINGLE_AUDIO, s.seconds)
+    )
     train_loader = DataLoader(train_dataset, batch_size=s.batch_size, shuffle=True)
 
     best_val_loss = float("inf")
@@ -222,7 +211,7 @@ def train():
 
     for epoch in range(s.epochs):
 
-        avg_train_loss, example_outputs, train_metrics = train_one_epoch(
+        avg_train_loss, train_metrics = train_one_epoch(
             model, train_loader, optimizer, device, epoch, session_dir
         )
         print(f"[Epoch {epoch+1}/{s.epochs}] Train Loss: {avg_train_loss:.4f}")
@@ -232,76 +221,89 @@ def train():
         else:
             model_path = os.path.join(session_dir, "harmonicrnn.pth")
 
-        print("Evaluating on validation set...")
-        avg_val_loss, example_outputs_val, val_metrics  = evaluate(model_path, Split.VALIDATION)
-        print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
+        if not s.single_element_training:
+            print("Evaluating on validation set...")
+            avg_val_loss, val_metrics = evaluate(model_path, Split.VALIDATION)
+            print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
 
         if s.model == Model.CNN:
-            wandb.log(
-                {
-                    "loss/train": avg_train_loss,
-                    "loss/val": avg_val_loss,
-
-                    "metrics_TRAIN/average accuracy/train_yp": train_metrics["yp_accuracy"],
-                    "metrics_TRAIN/precision/train_yp": train_metrics["yp_precision"],
-                    "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
-                    "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
-                    "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
-                    "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
-                    "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
-                    "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
-
-                    "metrics_VAL/average accuracy/train_yp": train_metrics["yp_accuracy"],
-                    "metrics_VAL/precision/train_yp": train_metrics["yp_precision"],
-                    "metrics_VAL/recall/train_yp": train_metrics["yp_recall"],
-                    "metrics_VAL/f1/train_yp": train_metrics["yp_f1"],
-                    "metrics_VAL/TP/train_yp": train_metrics["yp_TP"],
-                    "metrics_VAL/FP/train_yp": train_metrics["yp_FP"],
-                    "metrics_VAL/FN/train_yp": train_metrics["yp_FN"],
-                    "metrics_VAL/TN/train_yp": train_metrics["yp_TN"],
-                },
-                step=epoch + 1,
-            )
-
-            if should_log_image(epoch) and example_outputs is not None:
-                fig = plot_prediction_vs_ground_truth(
-                    example_outputs["yo_pred"][0],
-                    example_outputs["yp_pred"][0],
-                    (
-                        example_outputs["yn_pred"][0]
-                        if example_outputs["yn_pred"] is not None
-                        else None
-                    ),
-                    example_outputs["yo_true"][0],
-                    example_outputs["yp_true"][0],
-                    (
-                        example_outputs["yn_true"][0]
-                        if example_outputs["yn_true"] is not None
-                        else None
-                    ),
+            if s.single_element_training:
+                wandb.log(
+                    {
+                        "loss/train": avg_train_loss,
+                        "metrics_TRAIN/average accuracy/train_yp": train_metrics[
+                            "yp_accuracy"
+                        ],
+                        "metrics_TRAIN/precision/train_yp": train_metrics[
+                            "yp_precision"
+                        ],
+                        "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
+                        "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
+                        "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
+                        "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
+                        "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
+                        "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
+                    }
                 )
+            else:
+                wandb.log(
+                    {
+                        "loss/train": avg_train_loss,
+                        "loss/val": avg_val_loss,
+                        "metrics_TRAIN/average accuracy/train_yp": train_metrics[
+                            "yp_accuracy"
+                        ],
+                        "metrics_TRAIN/precision/train_yp": train_metrics[
+                            "yp_precision"
+                        ],
+                        "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
+                        "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
+                        "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
+                        "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
+                        "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
+                        "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
+                        "metrics_VAL/average accuracy/train_yp": val_metrics[
+                            "yp_accuracy"
+                        ],
+                        "metrics_VAL/precision/train_yp": val_metrics["yp_precision"],
+                        "metrics_VAL/recall/train_yp": val_metrics["yp_recall"],
+                        "metrics_VAL/f1/train_yp": val_metrics["yp_f1"],
+                        "metrics_VAL/TP/train_yp": val_metrics["yp_TP"],
+                        "metrics_VAL/FP/train_yp": val_metrics["yp_FP"],
+                        "metrics_VAL/FN/train_yp": val_metrics["yp_FN"],
+                        "metrics_VAL/TN/train_yp": val_metrics["yp_TN"],
+                    },
+                    step=epoch + 1,
+                )
+
+            if should_log_image(epoch):
+                d = DataSet(Split.SINGLE_AUDIO, s.seconds)
+                fixed_sample = d[0]
+                fig = plot_fixed_sample(model, fixed_sample, device)
+
                 wandb.log(
                     {"prediction_vs_gt": wandb.Image(fig, caption=f"Epoch {epoch+1}")},
                     step=epoch + 1,
                 )
                 plt.close(fig)
-                
-        else: #RNN TODO
+
+        else:  # RNN TODO
             pass
 
-        if avg_val_loss < best_val_loss - 1e-4:
-            best_val_loss = avg_val_loss
-            patience_counter = 0
-            print(f"Validation loss improved to {best_val_loss:.4f}")
+        if not s.single_element_training:
+            if avg_val_loss < best_val_loss - 1e-4:
+                best_val_loss = avg_val_loss
+                patience_counter = 0
+                print(f"Validation loss improved to {best_val_loss:.4f}")
 
-            best_model_path = os.path.join(session_dir, "best_model.pth")
-            torch.save(model.state_dict(), best_model_path)
-            print(f"Best model saved to {best_model_path}")
-        else:
-            patience_counter += 1
-            print(f"No improvement. Patience: {patience_counter}/{patience}")
-            if patience_counter >= patience:
-                print(
-                    f"Early stopping at epoch {epoch+1}. Best val loss: {best_val_loss:.4f}"
-                )
-                break
+                best_model_path = os.path.join(session_dir, "best_model.pth")
+                torch.save(model.state_dict(), best_model_path)
+                print(f"Best model saved to {best_model_path}")
+            else:
+                patience_counter += 1
+                print(f"No improvement. Patience: {patience_counter}/{patience}")
+                if patience_counter >= patience:
+                    print(
+                        f"Early stopping at epoch {epoch+1}. Best val loss: {best_val_loss:.4f}"
+                    )
+                    break

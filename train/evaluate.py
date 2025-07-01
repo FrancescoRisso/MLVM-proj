@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -13,7 +12,6 @@ from train.losses import harmoniccnn_loss
 from train.rnn_losses import np_midi_loss
 from train.utils import (
     midi_to_label_matrices,
-    plot_prediction_vs_ground_truth,
     to_tensor,
     soft_continuous_accuracy,
     binary_classification_metrics,
@@ -21,12 +19,6 @@ from train.utils import (
 
 
 def evaluate(model_path, dataset):
-    """
-    Evaluate the model on the test set.
-    Args:
-        model_path (str): Path to the pre-trained model.
-        dataset (str): Dataset to evaluate on. Options: "DataSet(Split.TRAIN, s.seconds)", "DataSet(Split.TRAIN, s.seconds)".
-    """
 
     device = s.device
     print(f"Evaluating on {device}")
@@ -49,7 +41,6 @@ def evaluate(model_path, dataset):
     running_acc_yp = 0.0
     total_batches = len(test_loader)
     yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
-    example_outputs = {}
 
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(test_loader), total=total_batches):
@@ -86,13 +77,9 @@ def evaluate(model_path, dataset):
 
                 audio_input_batch = torch.stack(audio_input_batch)
 
-                    
                 yo_pred, yp_pred, yn_pred = model(audio_input_batch)
 
-                yo_pred_sig = torch.sigmoid(yo_pred).squeeze(1)
                 yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
-                if not s.remove_yn:
-                    yn_pred_sig = torch.sigmoid(yn_pred).squeeze(1)
 
                 yo_pred = yo_pred.squeeze(1)
                 yp_pred = yp_pred.squeeze(1)
@@ -102,39 +89,26 @@ def evaluate(model_path, dataset):
                 acc_yp = soft_continuous_accuracy(yp_pred, yp_true_batch)
                 running_acc_yp += acc_yp
 
-                batch_metrics = binary_classification_metrics(yp_pred_sig, yp_true_batch)
+                batch_metrics = binary_classification_metrics(
+                    yp_pred_sig, yp_true_batch
+                )
                 for key in ["TP", "FP", "FN", "TN"]:
                     yp_metrics_accumulator[key] += batch_metrics[key]
 
                 loss = harmoniccnn_loss(
-                    yo_pred,            # yo_logits
-                    yp_pred,            # yp_logits
-                    yo_true_batch,      # yo_true
-                    yp_true_batch,      # yp_true
-                    yn_pred,            # yn_logits (opzionale)
-                    yn_true_batch,      # yn_true (opzionale)
+                    yo_pred,  # yo_logits
+                    yp_pred,  # yp_logits
+                    yo_true_batch,  # yo_true
+                    yp_true_batch,  # yp_true
+                    yn_pred,  # yn_logits (opzionale)
+                    yn_true_batch,  # yn_true (opzionale)
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
                 )
 
-                if batch_idx == total_batches - 1:
-                    example_outputs = {
-                        "yo_pred": yo_pred_sig.detach().cpu(),
-                        "yp_pred": yp_pred_sig.detach().cpu(),
-                        "yn_pred": yn_pred_sig.detach().cpu() if not s.remove_yn else None,
-                        "yo_true": yo_true_batch.detach().cpu(),
-                        "yp_true": yp_true_batch.detach().cpu(),
-                        "yn_true": (
-                            yn_true_batch.detach().cpu() if not s.remove_yn else None
-                        ),
-                    }
-
                 running_loss += sum(loss.values())
 
-
-
-
-            else:  #RNN TODO
+            else:  # RNN TODO
                 audios = audios.reshape(
                     (
                         audios.shape[0],  # leave batch items untouched
@@ -150,10 +124,9 @@ def evaluate(model_path, dataset):
                 )
 
     avg_loss = running_loss / total_batches
-    
 
     if s.model == Model.CNN:
-        
+
         # Calcolo metriche globali per CNN
         tp = yp_metrics_accumulator["TP"]
         fp = yp_metrics_accumulator["FP"]
@@ -171,26 +144,24 @@ def evaluate(model_path, dataset):
         print(f"Recall: {recall:.4f}")
         print(f"F1 Score: {f1:.4f}")
 
-
         return (
-            avg_loss, 
-            example_outputs, 
+            avg_loss,
             {
-            "yp_TP": tp,
-            "yp_FP": fp,
-            "yp_FN": fn,
-            "yp_TN": tn,
-            "yp_accuracy": avg_acc_yp,
-            "yp_precision": precision,
-            "yp_recall": recall,
-            "yp_f1": f1,
-        },)
-    
+                "yp_TP": tp,
+                "yp_FP": fp,
+                "yp_FN": fn,
+                "yp_TN": tn,
+                "yp_accuracy": avg_acc_yp,
+                "yp_precision": precision,
+                "yp_recall": recall,
+                "yp_f1": f1,
+            },
+        )
+
     else:  # RNN TODO
         print(f"[Evaluation] Loss: {avg_loss:.4f}")
 
     return avg_loss
-
 
 
 def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
