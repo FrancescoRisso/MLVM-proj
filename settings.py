@@ -58,10 +58,8 @@ class Settings:
     positive_weight_yn = 0.5
     save_model = True
 
-    # Training on single element
-    single_element_training = (
-        False  # if True, the model will be trained on a single element
-    )
+    # if True, the model will be trained on a single element
+    single_element_training = True
 
     # RNN settings
     hidden_size = 10000  # must be even

@@ -164,53 +164,6 @@ def plot_predictions_only(yo_pred, yp_pred, yn_pred):
     return fig
 
 
-
-
-
-
-
-# def plot_prediction_vs_ground_truth(
-#     yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true
-# ):
-#     yo_pred_np = to_numpy(yo_pred)
-#     yp_pred_np = to_numpy(yp_pred)
-#     yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
-
-#     yo_true_np = to_numpy(yo_true)
-#     yp_true_np = to_numpy(yp_true)
-#     yn_true_np = None if s.remove_yn else to_numpy(yn_true)
-
-#     n_rows = 2 if s.remove_yn else 3
-#     n_cols = 2
-
-#     fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
-
-#     def imshow_fixed(ax, data, title):
-#         im = ax.imshow(data, aspect="auto", origin="lower", vmin=0, vmax=1)
-#         ax.set_title(title)
-#         fig.colorbar(im, ax=ax)
-
-#     # Plot YO
-#     imshow_fixed(axes[0, 0], yo_true_np, "YO Ground Truth")
-#     imshow_fixed(axes[0, 1], yo_pred_np, "YO Prediction")
-
-#     # Plot YP
-#     imshow_fixed(axes[1, 0], yp_true_np, "YP Ground Truth")
-#     imshow_fixed(axes[1, 1], yp_pred_np, "YP Prediction")
-
-#     # Plot YN (if not removed)
-#     if not s.remove_yn:
-#         imshow_fixed(axes[2, 0], yn_true_np, "YN Ground Truth")
-#         imshow_fixed(axes[2, 1], yn_pred_np, "YN Prediction")
-
-#     for ax_row in axes:
-#         for ax in ax_row:
-#             ax.axis("off")
-
-#     plt.tight_layout()
-#     return fig
-
-
 def should_log_image(epoch):
     return epoch % 2 == 0
 

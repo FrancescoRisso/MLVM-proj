@@ -27,7 +27,7 @@ from train.utils import (
     soft_continuous_accuracy,
     should_log_image,
     plot_fixed_sample,
-    plot_ground_truth_only
+    plot_ground_truth_only,
 )
 
 
@@ -107,13 +107,11 @@ def train_one_epoch(
 
             total_loss = sum(loss.values())
 
-
         else:
             assert isinstance(model, HarmonicRNN)
             audios = audios.reshape((audios.shape[0], -1, s.sample_rate))
             pred_midi, pred_len = model(audios)
             total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
-
 
         total_loss.backward()
         optimizer.step()
@@ -261,7 +259,6 @@ def train():
                 d = DataSet(Split.SINGLE_AUDIO, s.seconds)
                 fixed_sample = d[0]
                 fig = plot_fixed_sample(model, fixed_sample, device)
-                
 
                 (midis_np, tempos, ticks_per_beats, nums_messages), _ = fixed_sample
                 midi = Song.from_np(
@@ -277,8 +274,14 @@ def train():
                 # Log both
                 wandb.log(
                     {
-                        "prediction_vs_gt": wandb.Image(fig, caption=f"Prediction Epoch {epoch+1}"),
-                        "ground_truth": wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}") if epoch == 0 or epoch == 1 else None,
+                        "prediction_vs_gt": wandb.Image(
+                            fig, caption=f"Prediction Epoch {epoch+1}"
+                        ),
+                        "ground_truth": (
+                            wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}")
+                            if epoch == 0 or epoch == 2
+                            else None
+                        ),
                     },
                     step=epoch + 1,
                 )
