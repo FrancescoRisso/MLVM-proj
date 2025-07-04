@@ -137,13 +137,6 @@ def evaluate(model_path, dataset):
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
         avg_acc_yp = running_acc_yp / total_batches
 
-        print(f"[YP] Validation Epoch Metrics")
-        print(f"TP: {tp:.0f}, FP: {fp:.0f}, FN: {fn:.0f}, TN: {tn:.0f}")
-        print(f"Average accuracy: {avg_acc_yp:.4f}")
-        print(f"Precision: {precision:.4f}")
-        print(f"Recall: {recall:.4f}")
-        print(f"F1 Score: {f1:.4f}")
-
         return (
             avg_loss,
             {

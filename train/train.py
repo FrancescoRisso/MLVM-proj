@@ -92,7 +92,6 @@ def train_one_epoch(
 
             accuracy = soft_continuous_accuracy(yp_pred_sig, yp_true_batch)
             total_accuracy += accuracy
-            print(f"Soft Continuous Accuracy: {accuracy:.4f}")
 
             loss = harmoniccnn_loss(
                 yo_pred,
@@ -141,13 +140,6 @@ def train_one_epoch(
     f1 = 2 * precision * recall / (precision + recall + 1e-8)
     average_soft_accuracy = total_accuracy / total_batches
 
-    print(f"[YP] Epoch Metrics")
-    print(f"TP: {tp:.0f}, FP: {fp:.0f}, FN: {fn:.0f}, TN: {tn:.0f}")
-    print(f"Average accuracy: {average_soft_accuracy:.4f}")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1 Score: {f1:.4f}")
-
     return (
         running_loss / total_batches,
         {
@@ -155,7 +147,7 @@ def train_one_epoch(
             "yp_FP": fp,
             "yp_FN": fn,
             "yp_TN": tn,
-            "yp_accuracy": accuracy,
+            "yp_accuracy": average_soft_accuracy,
             "yp_precision": precision,
             "yp_recall": recall,
             "yp_f1": f1,
@@ -294,7 +286,6 @@ def train():
             if avg_val_loss < best_val_loss - 1e-4:
                 best_val_loss = avg_val_loss
                 patience_counter = 0
-                print(f"Validation loss improved to {best_val_loss:.4f}")
 
                 best_model_path = os.path.join(session_dir, "best_model.pth")
                 torch.save(model.state_dict(), best_model_path)
