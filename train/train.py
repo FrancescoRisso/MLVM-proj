@@ -278,7 +278,7 @@ def train():
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(fig, caption=f"Prediction Epoch {epoch+1}"),
-                        "ground_truth": wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}") if epoch == 0 else None,
+                        "ground_truth": wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}") if epoch == 0 or epoch == 1 else None,
                     },
                     step=epoch + 1,
                 )
