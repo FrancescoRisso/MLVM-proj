@@ -86,7 +86,7 @@ def evaluate(model_path, dataset):
                 if not s.remove_yn:
                     yn_pred = yn_pred.squeeze(1)
 
-                acc_yp = soft_continuous_accuracy(yp_pred, yp_true_batch)
+                acc_yp = soft_continuous_accuracy(yp_pred_sig, yp_true_batch)
                 running_acc_yp += acc_yp
 
                 batch_metrics = binary_classification_metrics(
@@ -155,14 +155,3 @@ def evaluate(model_path, dataset):
         print(f"[Evaluation] Loss: {avg_loss:.4f}")
 
     return avg_loss
-
-
-def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
-    """
-    Accuracy continua: 1 - |pred - true| mediato.
-    Valori predetti vicini al target sono premiati di più.
-    """
-    with torch.no_grad():
-        error = torch.abs(y_pred - y_true)
-        score = 1.0 - error
-        return score.mean().item()
