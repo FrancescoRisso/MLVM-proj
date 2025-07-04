@@ -27,6 +27,7 @@ from train.utils import (
     soft_continuous_accuracy,
     should_log_image,
     plot_fixed_sample,
+    plot_ground_truth_only
 )
 
 
@@ -41,7 +42,7 @@ def train_one_epoch(
     total_batches = len(dataloader)
 
     # Accumulatore globale per le metriche di YP
-    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
+    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0}
 
     for batch_idx, batch in tqdm.tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
@@ -87,7 +88,7 @@ def train_one_epoch(
                 yn_pred = yn_pred.squeeze(1)
 
             batch_metrics = binary_classification_metrics(yp_pred_sig, yp_true_batch)
-            for key in ["TP", "FP", "FN", "TN"]:
+            for key in ["TP", "FP", "FN"]:
                 yp_metrics_accumulator[key] += batch_metrics[key]
 
             accuracy = soft_continuous_accuracy(yp_pred_sig, yp_true_batch)
@@ -134,7 +135,6 @@ def train_one_epoch(
     tp = yp_metrics_accumulator["TP"]
     fp = yp_metrics_accumulator["FP"]
     fn = yp_metrics_accumulator["FN"]
-    tn = yp_metrics_accumulator["TN"]
     precision = tp / (tp + fp + 1e-8)
     recall = tp / (tp + fn + 1e-8)
     f1 = 2 * precision * recall / (precision + recall + 1e-8)
@@ -143,10 +143,6 @@ def train_one_epoch(
     return (
         running_loss / total_batches,
         {
-            "yp_TP": tp,
-            "yp_FP": fp,
-            "yp_FN": fn,
-            "yp_TN": tn,
             "yp_accuracy": average_soft_accuracy,
             "yp_precision": precision,
             "yp_recall": recall,
@@ -166,9 +162,14 @@ def train():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     session_dir = os.path.join("model_saves")
 
+    if s.model == Model.CNN:
+        project_name = f"CNN_{timestamp}"
+    else:
+        project_name = f"RNN_{timestamp}"
+
     wandb.init(
         project="MLVM-Project",
-        name=f"harmonic_training_{timestamp}",
+        name=project_name,
         config={
             "epochs": s.epochs,
             "batch_size": s.batch_size,
@@ -231,10 +232,6 @@ def train():
                         ],
                         "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
                         "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
-                        "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
-                        "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
-                        "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
-                        "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
                     }
                 )
             else:
@@ -250,20 +247,12 @@ def train():
                         ],
                         "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
                         "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
-                        "metrics_TRAIN/TP/train_yp": train_metrics["yp_TP"],
-                        "metrics_TRAIN/FP/train_yp": train_metrics["yp_FP"],
-                        "metrics_TRAIN/FN/train_yp": train_metrics["yp_FN"],
-                        "metrics_TRAIN/TN/train_yp": train_metrics["yp_TN"],
                         "metrics_VAL/average accuracy/train_yp": val_metrics[
                             "yp_accuracy"
                         ],
                         "metrics_VAL/precision/train_yp": val_metrics["yp_precision"],
                         "metrics_VAL/recall/train_yp": val_metrics["yp_recall"],
                         "metrics_VAL/f1/train_yp": val_metrics["yp_f1"],
-                        "metrics_VAL/TP/train_yp": val_metrics["yp_TP"],
-                        "metrics_VAL/FP/train_yp": val_metrics["yp_FP"],
-                        "metrics_VAL/FN/train_yp": val_metrics["yp_FN"],
-                        "metrics_VAL/TN/train_yp": val_metrics["yp_TN"],
                     },
                     step=epoch + 1,
                 )
@@ -272,12 +261,29 @@ def train():
                 d = DataSet(Split.SINGLE_AUDIO, s.seconds)
                 fixed_sample = d[0]
                 fig = plot_fixed_sample(model, fixed_sample, device)
+                
 
+                (midis_np, tempos, ticks_per_beats, nums_messages), _ = fixed_sample
+                midi = Song.from_np(
+                    midis_np, tempos, ticks_per_beats, nums_messages
+                ).get_midi()
+                yo_true, yp_true = midi_to_label_matrices(
+                    midi, s.sample_rate, s.hop_length, n_bins=88
+                )
+                yn_true = yp_true
+
+                gt_fig = plot_ground_truth_only(yo_true, yp_true, yn_true)
+
+                # Log both
                 wandb.log(
-                    {"prediction_vs_gt": wandb.Image(fig, caption=f"Epoch {epoch+1}")},
+                    {
+                        "prediction_vs_gt": wandb.Image(fig, caption=f"Prediction Epoch {epoch+1}"),
+                        "ground_truth": wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}") if epoch == 0 else None,
+                    },
                     step=epoch + 1,
                 )
                 plt.close(fig)
+                plt.close(gt_fig)
 
         else:  # RNN TODO
             pass

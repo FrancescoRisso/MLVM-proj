@@ -40,7 +40,7 @@ def evaluate(model_path, dataset):
     running_loss = 0.0
     running_acc_yp = 0.0
     total_batches = len(test_loader)
-    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
+    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0}
 
     with torch.no_grad():
         for batch_idx, batch in tqdm(enumerate(test_loader), total=total_batches):
@@ -92,7 +92,7 @@ def evaluate(model_path, dataset):
                 batch_metrics = binary_classification_metrics(
                     yp_pred_sig, yp_true_batch
                 )
-                for key in ["TP", "FP", "FN", "TN"]:
+                for key in ["TP", "FP", "FN"]:
                     yp_metrics_accumulator[key] += batch_metrics[key]
 
                 loss = harmoniccnn_loss(
@@ -131,7 +131,6 @@ def evaluate(model_path, dataset):
         tp = yp_metrics_accumulator["TP"]
         fp = yp_metrics_accumulator["FP"]
         fn = yp_metrics_accumulator["FN"]
-        tn = yp_metrics_accumulator["TN"]
         precision = tp / (tp + fp + 1e-8)
         recall = tp / (tp + fn + 1e-8)
         f1 = 2 * precision * recall / (precision + recall + 1e-8)
@@ -140,10 +139,6 @@ def evaluate(model_path, dataset):
         return (
             avg_loss,
             {
-                "yp_TP": tp,
-                "yp_FP": fp,
-                "yp_FN": fn,
-                "yp_TN": tn,
                 "yp_accuracy": avg_acc_yp,
                 "yp_precision": precision,
                 "yp_recall": recall,

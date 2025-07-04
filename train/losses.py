@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from typing import Callable
 from settings import Settings as s
 
+
 def apply_label_smoothing(y_true: torch.Tensor, smoothing: float) -> torch.Tensor:
     """Applica label smoothing a etichette binarie."""
     return y_true * (1 - smoothing) + 0.5 * smoothing

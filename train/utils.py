@@ -103,57 +103,112 @@ def binary_classification_metrics(
         }
 
 
-def plot_prediction_vs_ground_truth(
-    yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true
-):
-    yo_pred_np = to_numpy(yo_pred)
-    yp_pred_np = to_numpy(yp_pred)
-    yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
+def imshow_fixed(ax, data, title, fig):
+    data = np.squeeze(data)  # Rimuove dimensioni inutili come (1, H, W)
+    im = ax.imshow(data, aspect="auto", origin="lower", vmin=0, vmax=1)
+    ax.set_title(title)
+    fig.colorbar(im, ax=ax)
 
+
+def plot_ground_truth_only(yo_true, yp_true, yn_true):
     yo_true_np = to_numpy(yo_true)
     yp_true_np = to_numpy(yp_true)
     yn_true_np = None if s.remove_yn else to_numpy(yn_true)
 
-    # Numero di righe: 2 per YO e YP, +1 se consideri YN
     n_rows = 2 if s.remove_yn else 3
-    n_cols = 2  # sempre 2 colonne: ground truth e predizione
 
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
+    fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))
 
-    # Plot YO
-    im0 = axes[0, 0].imshow(yo_true_np, aspect="auto", origin="lower")
-    axes[0, 0].set_title("YO Ground Truth")
-    fig.colorbar(im0, ax=axes[0, 0])
+    if n_rows == 1:
+        axes = [axes]
 
-    im1 = axes[0, 1].imshow(yo_pred_np, aspect="auto", origin="lower")
-    axes[0, 1].set_title("YO Prediction")
-    fig.colorbar(im1, ax=axes[0, 1])
+    axes = np.atleast_1d(axes)
 
-    # Plot YP
-    im2 = axes[1, 0].imshow(yp_true_np, aspect="auto", origin="lower")
-    axes[1, 0].set_title("YP Ground Truth")
-    fig.colorbar(im2, ax=axes[1, 0])
+    imshow_fixed(axes[0], yo_true_np, "YO Ground Truth", fig)
+    imshow_fixed(axes[1], yp_true_np, "YP Ground Truth", fig)
 
-    im3 = axes[1, 1].imshow(yp_pred_np, aspect="auto", origin="lower")
-    axes[1, 1].set_title("YP Prediction")
-    fig.colorbar(im3, ax=axes[1, 1])
-
-    # Plot YN (solo se non rimosso)
     if not s.remove_yn:
-        im4 = axes[2, 0].imshow(yn_true_np, aspect="auto", origin="lower")
-        axes[2, 0].set_title("YN Ground Truth")
-        fig.colorbar(im4, ax=axes[2, 0])
+        imshow_fixed(axes[2], yn_true_np, "YN Ground Truth", fig)
 
-        im5 = axes[2, 1].imshow(yn_pred_np, aspect="auto", origin="lower")
-        axes[2, 1].set_title("YN Prediction")
-        fig.colorbar(im5, ax=axes[2, 1])
-
-    for ax_row in axes:
-        for ax in ax_row:
-            ax.axis("off")
+    for ax in axes:
+        ax.axis("off")
 
     plt.tight_layout()
     return fig
+
+
+def plot_predictions_only(yo_pred, yp_pred, yn_pred):
+    yo_pred_np = to_numpy(yo_pred)
+    yp_pred_np = to_numpy(yp_pred)
+    yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
+
+    n_rows = 2 if s.remove_yn else 3
+
+    fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))
+
+    if n_rows == 1:
+        axes = [axes]
+
+    axes = np.atleast_1d(axes)
+
+    imshow_fixed(axes[0], yo_pred_np, "YO Prediction", fig)
+    imshow_fixed(axes[1], yp_pred_np, "YP Prediction", fig)
+
+    if not s.remove_yn:
+        imshow_fixed(axes[2], yn_pred_np, "YN Prediction", fig)
+
+    for ax in axes:
+        ax.axis("off")
+
+    plt.tight_layout()
+    return fig
+
+
+
+
+
+
+
+# def plot_prediction_vs_ground_truth(
+#     yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true
+# ):
+#     yo_pred_np = to_numpy(yo_pred)
+#     yp_pred_np = to_numpy(yp_pred)
+#     yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
+
+#     yo_true_np = to_numpy(yo_true)
+#     yp_true_np = to_numpy(yp_true)
+#     yn_true_np = None if s.remove_yn else to_numpy(yn_true)
+
+#     n_rows = 2 if s.remove_yn else 3
+#     n_cols = 2
+
+#     fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 4 * n_rows))
+
+#     def imshow_fixed(ax, data, title):
+#         im = ax.imshow(data, aspect="auto", origin="lower", vmin=0, vmax=1)
+#         ax.set_title(title)
+#         fig.colorbar(im, ax=ax)
+
+#     # Plot YO
+#     imshow_fixed(axes[0, 0], yo_true_np, "YO Ground Truth")
+#     imshow_fixed(axes[0, 1], yo_pred_np, "YO Prediction")
+
+#     # Plot YP
+#     imshow_fixed(axes[1, 0], yp_true_np, "YP Ground Truth")
+#     imshow_fixed(axes[1, 1], yp_pred_np, "YP Prediction")
+
+#     # Plot YN (if not removed)
+#     if not s.remove_yn:
+#         imshow_fixed(axes[2, 0], yn_true_np, "YN Ground Truth")
+#         imshow_fixed(axes[2, 1], yn_pred_np, "YN Prediction")
+
+#     for ax_row in axes:
+#         for ax in ax_row:
+#             ax.axis("off")
+
+#     plt.tight_layout()
+#     return fig
 
 
 def should_log_image(epoch):
@@ -214,13 +269,6 @@ def plot_fixed_sample(model, sample, device):
     yp_pred = torch.sigmoid(yp_pred).squeeze(1).cpu()
     yn_pred = torch.sigmoid(yn_pred).squeeze(1).cpu() if not s.remove_yn else None
 
-    fig = plot_prediction_vs_ground_truth(
-        yo_pred[0],
-        yp_pred[0],
-        yn_pred[0] if yn_pred is not None else None,
-        yo_true.cpu()[0],
-        yp_true.cpu()[0],
-        yn_true.cpu()[0] if yn_true is not None else None,
-    )
+    fig = plot_predictions_only(yo_pred, yp_pred, yn_pred)
 
     return fig
