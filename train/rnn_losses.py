@@ -23,7 +23,7 @@ def np_midi_loss(
         lambda x: 2 / (1 + torch.exp(-0.5 * x)) - 1
     )
 
-    loss_tpb = torch.abs(pred_tpb - target_tpb)
+    loss_tpb = torch.sum(torch.abs(pred_tpb - target_tpb))
 
     # Start by penalizing for missing or extra midi messages
     # Each message added or missing is considered as an error of 600
@@ -39,7 +39,7 @@ def np_midi_loss(
 
     # Penalize putting a message at the wrong time
     tick_errors = torch.abs(
-        target_midi[:, :, 0] - pred_midi[:, :, 0] * (pred_tpb / target_tpb)
+        target_midi[:, :, 0] - pred_midi[:, :, 0] * (pred_tpb / target_tpb)[:, None]
     )
     loss_wrong_time = torch.sum(mask * tick_errors)
 
