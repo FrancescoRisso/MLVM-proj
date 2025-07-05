@@ -44,7 +44,7 @@ def train_one_epoch(
     # Accumulatore globale per le metriche di YP
     yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0}
 
-    for batch_idx, batch in tqdm.tqdm(
+    for _, batch in tqdm.tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
     ):
         (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
