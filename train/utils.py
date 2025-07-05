@@ -110,52 +110,24 @@ def imshow_fixed(ax, data, title, fig):
     fig.colorbar(im, ax=ax)
 
 
-def plot_ground_truth_only(yo_true, yp_true, yn_true):
-    yo_true_np = to_numpy(yo_true)
-    yp_true_np = to_numpy(yp_true)
-    yn_true_np = None if s.remove_yn else to_numpy(yn_true)
+def plot_harmoniccnn_outputs(yo, yp, yn, title_prefix):
+
+    yo_np = to_numpy(yo)
+    yp_np = to_numpy(yp)
+    yn_np = None if s.remove_yn else to_numpy(yn)
 
     n_rows = 2 if s.remove_yn else 3
-
     fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))
 
     if n_rows == 1:
         axes = [axes]
-
     axes = np.atleast_1d(axes)
 
-    imshow_fixed(axes[0], yo_true_np, "YO Ground Truth", fig)
-    imshow_fixed(axes[1], yp_true_np, "YP Ground Truth", fig)
+    imshow_fixed(axes[0], yo_np, f"YO {title_prefix}", fig)
+    imshow_fixed(axes[1], yp_np, f"YP {title_prefix}", fig)
 
     if not s.remove_yn:
-        imshow_fixed(axes[2], yn_true_np, "YN Ground Truth", fig)
-
-    for ax in axes:
-        ax.axis("off")
-
-    plt.tight_layout()
-    return fig
-
-
-def plot_predictions_only(yo_pred, yp_pred, yn_pred):
-    yo_pred_np = to_numpy(yo_pred)
-    yp_pred_np = to_numpy(yp_pred)
-    yn_pred_np = None if s.remove_yn else to_numpy(yn_pred)
-
-    n_rows = 2 if s.remove_yn else 3
-
-    fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))
-
-    if n_rows == 1:
-        axes = [axes]
-
-    axes = np.atleast_1d(axes)
-
-    imshow_fixed(axes[0], yo_pred_np, "YO Prediction", fig)
-    imshow_fixed(axes[1], yp_pred_np, "YP Prediction", fig)
-
-    if not s.remove_yn:
-        imshow_fixed(axes[2], yn_pred_np, "YN Prediction", fig)
+        imshow_fixed(axes[2], yn_np, f"YN {title_prefix}", fig)
 
     for ax in axes:
         ax.axis("off")
@@ -165,7 +137,10 @@ def plot_predictions_only(yo_pred, yp_pred, yn_pred):
 
 
 def should_log_image(epoch):
-    return epoch % 2 == 0
+    if epoch < 10:
+        return epoch % 2 == 0
+    else:
+        return epoch % 5 == 0
 
 
 def binary_classification_metrics(
@@ -222,6 +197,8 @@ def plot_fixed_sample(model, sample, device):
     yp_pred = torch.sigmoid(yp_pred).squeeze(1).cpu()
     yn_pred = torch.sigmoid(yn_pred).squeeze(1).cpu() if not s.remove_yn else None
 
-    fig = plot_predictions_only(yo_pred, yp_pred, yn_pred)
+    title_prefix = "Prediction"
+
+    fig = plot_harmoniccnn_outputs(yo_pred, yp_pred, yn_pred, title_prefix)
 
     return fig

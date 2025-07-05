@@ -27,7 +27,7 @@ from train.utils import (
     soft_continuous_accuracy,
     should_log_image,
     plot_fixed_sample,
-    plot_ground_truth_only,
+    plot_harmoniccnn_outputs,
 )
 
 
@@ -271,7 +271,10 @@ def train():
                 )
                 yn_true = yp_true
 
-                gt_fig = plot_ground_truth_only(yo_true, yp_true, yn_true)
+                title_prefix = "Ground Truth"
+                gt_fig = plot_harmoniccnn_outputs(
+                    yo_true, yp_true, yn_true, title_prefix
+                )
 
                 # Log both
                 wandb.log(
