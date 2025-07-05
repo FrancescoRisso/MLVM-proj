@@ -48,7 +48,7 @@ class Settings:
 
     # training settings
     pre_trained_model_path = None  # path to a pre-trained model, if any
-    epochs = 1000
+    epochs = 100000
     batch_size = 30
     learning_rate = 1e-4
     label_smoothing = 0.0

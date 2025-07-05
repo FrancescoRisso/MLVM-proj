@@ -1,18 +1,16 @@
 import torch
 import torch.nn.functional as F
-from typing import Callable
 from settings import Settings as s
 
 
 def apply_label_smoothing(y_true: torch.Tensor, smoothing: float) -> torch.Tensor:
-    """Applica label smoothing a etichette binarie."""
     return y_true * (1 - smoothing) + 0.5 * smoothing
 
 
 def transcription_loss(
     y_true: torch.Tensor, y_logits: torch.Tensor, label_smoothing: float
 ) -> torch.Tensor:
-    """Binary cross entropy con label smoothing (non pesata)."""
+
     y_true = apply_label_smoothing(y_true, label_smoothing)
     return F.binary_cross_entropy_with_logits(y_logits, y_true)
 
@@ -23,7 +21,7 @@ def weighted_transcription_loss(
     label_smoothing: float,
     positive_weight: float,
 ) -> torch.Tensor:
-    """Binary cross entropy con pesi diversi per classi positive e negative."""
+
     y_true = apply_label_smoothing(y_true, label_smoothing)
 
     # Mask per negativi e positivi
@@ -51,11 +49,7 @@ def harmoniccnn_loss(
     label_smoothing: float = 0.0,
     weighted: bool = False,
 ) -> dict:
-    """
-    Loss finale per HarmonicCNN, con smoothing e pesi personalizzabili per onset, tone, note.
-    Usa sempre weighted_transcription_loss.
-    """
-    # Se weighted=False, forziamo pesi bilanciati
+
     if not weighted:
         positive_weight_yo = 0.5
         positive_weight_yp = 0.5

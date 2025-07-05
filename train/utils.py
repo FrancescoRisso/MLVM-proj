@@ -65,8 +65,8 @@ def to_numpy(tensor):
 
 def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
     """
-    Accuracy continua: 1 - |pred - true| mediato.
-    Valori predetti vicini al target sono premiati di più.
+    Soft continuous accuracy: 1 - |pred - true| averaged.
+    Predicted values closer to the target are rewarded more.
     """
     with torch.no_grad():
         error = torch.abs(y_pred - y_true)
@@ -104,7 +104,7 @@ def binary_classification_metrics(
 
 
 def imshow_fixed(ax, data, title, fig):
-    data = np.squeeze(data)  # Rimuove dimensioni inutili come (1, H, W)
+    data = np.squeeze(data)
     im = ax.imshow(data, aspect="auto", origin="lower", vmin=0, vmax=1)
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
@@ -172,10 +172,10 @@ def binary_classification_metrics(
     y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5
 ):
     """
-    Calcola TP, FP, FN, TN, Precision, Recall e F1 score per predizioni binarie.
+    Computes TP, FP, FN, TN, Precision, Recall, and F1 score for binary predictions.
 
-    y_pred: tensor dopo la sigmoid, valori in [0,1]
-    y_true: tensor binario (0/1)
+    y_pred: tensor after sigmoid, values in [0,1]
+    y_true: binary tensor (0/1)
     """
     with torch.no_grad():
         y_pred_bin = (y_pred >= threshold).float()

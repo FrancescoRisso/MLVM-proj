@@ -162,6 +162,8 @@ def train():
 
     if s.model == Model.CNN:
         project_name = f"CNN_{timestamp}"
+        if s.single_element_training:
+            project_name = f"CNN_single_{timestamp}"
     else:
         project_name = f"RNN_{timestamp}"
 

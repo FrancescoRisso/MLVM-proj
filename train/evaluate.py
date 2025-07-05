@@ -43,7 +43,7 @@ def evaluate(model_path, dataset):
     yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0}
 
     with torch.no_grad():
-        for batch_idx, batch in tqdm(enumerate(test_loader), total=total_batches):
+        for _, batch in tqdm(enumerate(test_loader), total=total_batches):
             (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
 
             if s.model == Model.CNN:
