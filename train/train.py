@@ -302,7 +302,7 @@ def train():
                     title_prefix,
                 )
 
-                Log both
+                # Log both
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(
