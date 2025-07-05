@@ -2,11 +2,9 @@ import numpy as np
 import torch
 import mido
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 
 from dataloader.Song import Song
 from settings import Settings as s
-from train.losses import harmoniccnn_loss
 
 
 def midi_to_label_matrices(mido_midi, sample_rate, hop_length, n_bins=88):
@@ -60,167 +58,147 @@ def to_tensor(array):
 
 
 def to_numpy(tensor):
+    if tensor is None:
+        return None
     return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor
 
 
-def weighted_soft_accuracy(
-    y_pred: torch.Tensor,
-    y_true: torch.Tensor,
-    weight_positive: float = 0.95,
-    weight_negative: float = 0.05,
-    tolerance: float = 0.1,
-) -> float:
+def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
     """
-    Accuratezza pesata: le predizioni corrette per classi positive (1) valgono di più (0.95),
-    mentre quelle per classi negative (0) valgono meno (0.05).
-    E' intesa per essere usata come debug per vedere se la rete sta effettivamente migliorando
-    Non è intesa per essere usata come metrica di valutazione finale.
+    Soft continuous accuracy: 1 - |pred - true| averaged.
+    Predicted values closer to the target are rewarded more.
     """
     with torch.no_grad():
-        diff = torch.abs(y_pred - y_true)
-        correct = (diff <= tolerance).float()
-
-        # Assegna pesi: 0.95 per le note attive, 0.05 per quelle inattive
-        weights = torch.where(y_true > 0.5, weight_positive, weight_negative)
-        weighted_correct = correct * weights
-
-        return weighted_correct.sum().item() / weights.sum().item()
+        error = torch.abs(y_pred - y_true)
+        score = 1.0 - error
+        return score.mean().item()
 
 
-def plot_prediction_vs_ground_truth(yo_pred, yp_pred, yn_pred, yo_true, yn_true):
+def binary_classification_metrics(
+    y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5
+):
+    with torch.no_grad():
+        y_pred_bin = (y_pred >= threshold).float()
 
-    yo_pred_np = to_numpy(F.sigmoid(yo_pred))
-    yo_true_np = to_numpy(yo_true)
-    yp_pred_np = to_numpy(F.sigmoid(yp_pred))
-    if yn_pred is not None:
-        yn_pred_np = to_numpy(F.sigmoid(yn_pred))
-    yn_true_np = to_numpy(yn_true)
+        tp = (y_pred_bin * y_true).sum().item()
+        fp = (y_pred_bin * (1 - y_true)).sum().item()
+        fn = ((1 - y_pred_bin) * y_true).sum().item()
+        tn = ((1 - y_pred_bin) * (1 - y_true)).sum().item()
 
-    plt.figure(figsize=(12, 8))
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
 
-    plt.subplot(3, 2, 1)
-    plt.imshow(yo_true_np, aspect="auto", cmap="viridis")
-    plt.title("YO Ground Truth")
-    plt.colorbar()
+        accuracy = soft_continuous_accuracy(y_pred, y_true)
 
-    plt.subplot(3, 2, 2)
-    plt.imshow(yo_pred_np, aspect="auto", cmap="viridis")
-    plt.title("YO Prediction")
-    plt.colorbar()
+        return {
+            "TP": tp,
+            "FP": fp,
+            "FN": fn,
+            "TN": tn,
+            "Precision": precision,
+            "Recall": recall,
+            "F1": f1,
+            "Accuracy": accuracy,
+        }
 
-    plt.subplot(3, 2, 3)
-    plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
-    plt.title("YP Ground Truth")
-    plt.colorbar()
 
-    plt.subplot(3, 2, 4)
-    plt.imshow(yp_pred_np, aspect="auto", cmap="inferno")
-    plt.title("YP Prediction")
-    plt.colorbar()
+def imshow_fixed(ax, data, title, fig):
+    data = np.squeeze(data)
+    im = ax.imshow(data, aspect="auto", origin="lower", vmin=0, vmax=1)
+    ax.set_title(title)
+    fig.colorbar(im, ax=ax)
 
-    if yn_pred is not None:
-        plt.subplot(3, 2, 5)
-        plt.imshow(yn_true_np, aspect="auto", cmap="inferno")
-        plt.title("YN Ground Truth")
-        plt.colorbar()
 
-        plt.subplot(3, 2, 6)
-        plt.imshow(yn_pred_np, aspect="auto", cmap="inferno")
-        plt.title("YN Prediction")
-        plt.colorbar()
+def plot_harmoniccnn_outputs(yo, yp, yn, title_prefix):
+
+    yo_np = to_numpy(yo)
+    yp_np = to_numpy(yp)
+    yn_np = None if s.remove_yn else to_numpy(yn)
+
+    n_rows = 2 if s.remove_yn else 3
+    fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))
+
+    if n_rows == 1:
+        axes = [axes]
+    axes = np.atleast_1d(axes)
+
+    imshow_fixed(axes[0], yo_np, f"YO {title_prefix}", fig)
+    imshow_fixed(axes[1], yp_np, f"YP {title_prefix}", fig)
+
+    if not s.remove_yn:
+        imshow_fixed(axes[2], yn_np, f"YN {title_prefix}", fig)
+
+    for ax in axes:
+        ax.axis("off")
 
     plt.tight_layout()
-    plt.show()
+    return fig
 
 
-def batch_prediction_plot():
+def should_log_image(epoch):
+    if epoch < 10:
+        return epoch % 2 == 0
+    else:
+        return epoch % 5 == 0
 
-    import os
-    from dataloader.dataset import DataSet, Split
-    from model.model import HarmonicCNN
-    from torch.utils.data import DataLoader
-    from settings import Settings as s
 
-    device = s.device
-    print(f"Eval on {device}")
+def binary_classification_metrics(
+    y_pred: torch.Tensor, y_true: torch.Tensor, threshold: float = 0.5
+):
+    """
+    Computes TP, FP, FN, TN, Precision, Recall, and F1 score for binary predictions.
 
-    model_path = os.path.join(
-        "model_saves", "training_2025-06-25_10-19-45", "harmoniccnn_epoch_5.pth"
-    )
+    y_pred: tensor after sigmoid, values in [0,1]
+    y_true: binary tensor (0/1)
+    """
+    with torch.no_grad():
+        y_pred_bin = (y_pred >= threshold).float()
 
-    run_single_batch_prediction_plot(
-        model_path=model_path,
-        model=HarmonicCNN().to(s.device),
-        dataloader=DataLoader(
-            DataSet(Split.TRAIN, s.seconds), batch_size=s.batch_size, shuffle=True
-        ),
-    )
+        tp = (y_pred_bin * y_true).sum().item()
+        fp = (y_pred_bin * (1 - y_true)).sum().item()
+        fn = ((1 - y_pred_bin) * y_true).sum().item()
+        tn = ((1 - y_pred_bin) * (1 - y_true)).sum().item()
+
+        precision = tp / (tp + fp + 1e-8)
+        recall = tp / (tp + fn + 1e-8)
+        f1 = 2 * precision * recall / (precision + recall + 1e-8)
+
+        return {
+            "TP": tp,
+            "FP": fp,
+            "FN": fn,
+            "TN": tn,
+            "Precision": precision,
+            "Recall": recall,
+            "F1": f1,
+        }
 
 
 @torch.no_grad()
-def run_single_batch_prediction_plot(
-    model_path: str,
-    model: torch.nn.Module,
-    dataloader: torch.utils.data.DataLoader,
-    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-):
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
+def plot_fixed_sample(model, sample, device):
+    (midi_np, tempo, ticks_per_beat, num_messages), audio = sample
+    audio = torch.from_numpy(audio) if isinstance(audio, np.ndarray) else audio
+    audio = audio.unsqueeze(0).to(device)
 
-    # --- Carica un batch ---
-    batch = next(iter(dataloader))
-    (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
-
-    # --- Crea ground truth ---
-    midi = Song.from_np(
-        midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
-    ).get_midi()
-    yo_true, yn_true = midi_to_label_matrices(
+    midi = Song.from_np(midi_np, tempo, ticks_per_beat, num_messages).get_midi()
+    yo_true, yp_true = midi_to_label_matrices(
         midi, s.sample_rate, s.hop_length, n_bins=88
     )
+    yn_true = yp_true if s.remove_yn else yo_true
 
-    # --- Input e target su device ---
-    input_audio = audios[0].to(device).unsqueeze(0)
-    yo_true_tensor = to_tensor(yo_true).to(device).squeeze(0)
-    yn_true_tensor = to_tensor(yn_true).to(device).squeeze(0)
+    yo_true = to_tensor(yo_true).unsqueeze(0).to(device)
+    yp_true = to_tensor(yp_true).unsqueeze(0).to(device)
+    yn_true = to_tensor(yn_true).unsqueeze(0).to(device) if not s.remove_yn else None
 
-    # --- Predizione ---
-    yo_logits, yp_logits, yn_logits = model(input_audio)
-    yo_logits = yo_logits.squeeze(1)[0]
-    yp_logits = yp_logits.squeeze(1)[0]
-    if yn_logits is not None:
-        yn_logits = yn_logits.squeeze(1)[0]
+    yo_pred, yp_pred, yn_pred = model(audio)
 
-    # --- Applica sigmoid per accuratezze soft ---
-    yo_pred = torch.sigmoid(yo_logits)
-    yp_pred = torch.sigmoid(yp_logits) 
-    if yn_logits is not None:
-        yn_pred = torch.sigmoid(yn_logits)
+    yo_pred = torch.sigmoid(yo_pred).squeeze(1).cpu()
+    yp_pred = torch.sigmoid(yp_pred).squeeze(1).cpu()
+    yn_pred = torch.sigmoid(yn_pred).squeeze(1).cpu() if not s.remove_yn else None
 
-    # --- Calcolo loss totale ---
-    loss_total = harmoniccnn_loss(
-        yo_logits=yo_logits,
-        yp_logits=yp_logits,
-        yo_true=yo_true_tensor,
-        yp_true=yn_true_tensor,
-        yn_logits=yn_logits,
-        yn_true=yn_true_tensor,
-        label_smoothing=0.2,
-        weighted=False,
-        positive_weight=0.5,
-    )
-    total_loss = sum(loss_total.values())
-    # --- Calcolo accuratezze ---
-    acc_yo = weighted_soft_accuracy(yo_pred, yo_true_tensor)
-    acc_yp = weighted_soft_accuracy(yp_pred, yn_true_tensor)
-    if yn_logits is not None:
-        acc_yn = weighted_soft_accuracy(yn_pred, yn_true_tensor)
+    title_prefix = "Prediction"
 
-    # --- Stampa risultati ---
-    print(f"Total Loss: {total_loss.item():.4f}")
-    print(f"YO Soft Accuracy: {acc_yo:.4f}")
-    print(f"YN Soft Accuracy: {acc_yn:.4f}")
+    fig = plot_harmoniccnn_outputs(yo_pred, yp_pred, yn_pred, title_prefix)
 
-    # --- Plot ---
-    plot_prediction_vs_ground_truth(yo_pred, yp_pred, yo_true_tensor, yn_true_tensor)
+    return fig

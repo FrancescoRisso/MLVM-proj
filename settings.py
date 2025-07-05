@@ -9,8 +9,8 @@ audio_font_folder = os.path.join(cur_dir, "audio-fonts")
 
 
 class Model(Enum):
-    CNN=0
-    RNN=1
+    CNN = 0
+    RNN = 1
 
 
 class Settings:
@@ -42,19 +42,24 @@ class Settings:
     hop_length = 512
     n_bins = 88
     harmonic_shifts = [-12, 0, 12]
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     model: Model = Model.CNN
-    remove_yn = False  # if True, the model will not predict the note matrix
+    remove_yn = True  # if True, the model will not predict the note matrix
 
     # training settings
-    epochs = 5
+    pre_trained_model_path = None  # path to a pre-trained model, if any
+    epochs = 100000
     batch_size = 30
     learning_rate = 1e-4
-    label_smoothing = 0.1
+    label_smoothing = 0.0
     weighted = True
-    positive_weight = 0.95
-    weighted = True
+    positive_weight_yp = 0.55
+    positive_weight_yo = 0.90
+    positive_weight_yn = 0.5
     save_model = True
+
+    # if True, the model will be trained on a single element
+    single_element_training = True
 
     # RNN settings
     hidden_size = 10000  # must be even

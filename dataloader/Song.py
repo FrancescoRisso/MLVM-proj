@@ -144,7 +144,9 @@ class Song:
         track = MidiTrack()
 
         for i in range(num_messages):
-            track.append(np_to_msg(data[i]))
+            midi_msg = np_to_msg(data[i])
+            if midi_msg is not None:
+                track.append(midi_msg)
 
         return Song.from_tracks(
             [track], tempo=tempo, ticks_per_beat=ticks_per_beat, wav_path=wav_path
@@ -511,16 +513,21 @@ class Song:
         """
         res = np.zeros(shape=(Settings.max_midi_messages, 6), dtype=np.uint16)
 
-        for idx, msg in enumerate(self.__midi.tracks[0]):
+        idx = 0
+        for msg in self.__midi.tracks[0]:
             if idx >= Settings.max_midi_messages:
                 raise Exception(
                     f"A song with {len(self.__midi.tracks[0])} messages does not fit on the allocated {Settings.max_midi_messages}"
                 )
-            self.__msg_to_np(msg, res[idx])
+
+            if self.__msg_to_np(msg, res[idx]):
+                idx += 1
+            else:
+                print(f'WARN: To np not implemented for message "{msg}"')
 
         return res, self.__tempo, self.__ticks_per_beat, len(self.__midi.tracks[0])
 
-    def __msg_to_np(self, msg: Message | MetaMessage, res: np.ndarray) -> None:
+    def __msg_to_np(self, msg: Message | MetaMessage, res: np.ndarray) -> bool:
         """
         Stores a midi message into a np array in a suitable format
 
@@ -529,6 +536,11 @@ class Song:
         ----------
         - msg: the message to save
         - res: the array where to save the message
+
+        ---------------------------------------------------------------------
+        OUTPUT
+        ----------
+        if the message was recognised and saved
         """
 
         if isinstance(msg.time, float):
@@ -552,7 +564,7 @@ class Song:
                 res[:2] = (msg.time, END_OF_TRACK)
 
             else:
-                raise NotImplementedError(f'To np not implemented for message "{msg}"')
+                return False
 
         # not MetaMessage
         else:
@@ -571,10 +583,12 @@ class Song:
                 res[:3] = (msg.time, PROGRAM_CHANGE, msg.program)
 
             else:
-                raise NotImplementedError(f'To np not implemented for message "{msg}"')
+                return False
+
+        return True
 
 
-def np_to_msg(arr: np.ndarray) -> Message | MetaMessage:
+def np_to_msg(arr: np.ndarray) -> Message | MetaMessage | None:
     """
     Converts a midi message from np stored to real message
 
@@ -624,4 +638,5 @@ def np_to_msg(arr: np.ndarray) -> Message | MetaMessage:
     if arr[1] == END_OF_TRACK:
         return MetaMessage("end_of_track", time=int(arr[0]))
 
-    raise NotImplementedError(f'Unrecognized np message type "{arr[1]}"')
+    print(f'WARN: Unrecognized np message type "{arr[1]}"')
+    return None
