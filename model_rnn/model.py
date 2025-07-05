@@ -10,7 +10,7 @@ class HarmonicRNN(nn.Module):
         """
         Creates a RNN to perform the task of audio to midi conversion
         """
-        super().__init__()
+        super().__init__()  # type: ignore
 
         assert Settings.hidden_size % 2 == 0
 
@@ -43,7 +43,7 @@ class HarmonicRNN(nn.Module):
             device=Settings.device,
         )
 
-    def forward(self, batched_input: np.ndarray) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, batched_input: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Given an audio file, uses the RNN to create its corresponding midi
 

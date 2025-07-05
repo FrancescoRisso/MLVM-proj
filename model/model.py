@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
+
 from model.preprocessing import preprocess
 from settings import Settings as s
 
 
 # ---------- CNN Blocks ----------
-def get_conv_net(channels, ks, s, p):
-    layers = []
+def get_conv_net(
+    channels: list[int], ks: tuple[int, int], s: tuple[int, int], p: tuple[int, int]
+):
+    layers: list[nn.Module] = []
     for i in range(len(channels) - 1):
         layers.append(
             nn.Conv2d(channels[i], channels[i + 1], kernel_size=ks, stride=s, padding=p)
@@ -19,7 +22,7 @@ def get_conv_net(channels, ks, s, p):
 # ---------- Full Model ----------
 class HarmonicCNN(nn.Module):
     def __init__(self):
-        super().__init__()
+        super().__init__()  # type: ignore
 
         # Yp branch
         self.block_a1 = get_conv_net([3, 16], ks=(5, 5), s=(1, 1), p=(2, 2))
@@ -37,7 +40,7 @@ class HarmonicCNN(nn.Module):
         self.block_b1 = get_conv_net([3, 32], ks=(5, 5), s=(1, 1), p=(2, 2))
         self.conv_b2 = nn.Conv2d(33, 1, kernel_size=(3, 3), padding=(1, 1))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor):
         x = preprocess(x)
 
         # --- Yp branch ---
@@ -46,23 +49,27 @@ class HarmonicCNN(nn.Module):
         yp_logits = self.conv_a3(xa)  # logits
         yp = torch.sigmoid(yp_logits)  # only for internal use
 
-        # --- Yn branch ---
+        # --- Yn and Yo branch ---
+        xb = self.block_b1(x)
+
         if not s.remove_yn:
+            # --- Yn branch ---
             yn_logits = self.conv_c3(self.relu_c2(self.conv_c1(yp)))  # logits
             yn = torch.sigmoid(yn_logits)  # solo per yo
+
+            # --- Yo branch ---
+            concat = torch.cat([xb, yn], dim=1)  # uses "activated" yn output
         else:
+            # --- Yn branch ---
             yn_logits = None
 
-        # --- Yo branch ---
-        xb = self.block_b1(x)
-        if s.remove_yn:
+            # --- Yo branch ---
             concat = torch.cat([xb, yp], dim=1)
-        else:
-            concat = torch.cat([xb, yn], dim=1)  # uses "activated" yn output
+
         yo_logits = self.conv_b2(concat)  # logits
 
         return (
             yo_logits,
-            yp_logits,          # return yp_logits instead of yn_logits
-            yn_logits
+            yp_logits,  # return yp_logits instead of yn_logits
+            yn_logits,
         )  # postprocessing(Y0, YN) TODO da usare sigmoide anche prima

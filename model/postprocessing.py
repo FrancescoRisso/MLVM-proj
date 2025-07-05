@@ -1,4 +1,7 @@
-import pretty_midi
+import numpy as np
+import numpy.typing as npt
+import pretty_midi  # type: ignore
+import torch
 
 """
     Converts onset, pitch, and note posteriorgrams to a MIDI file.
@@ -19,14 +22,14 @@ import pretty_midi
 
 
 def posteriorgrams_to_midi(
-    Yo,
-    Yp,
-    Yn,
-    threshold=0.5,
-    frame_rate=100,
-    velocity=100,
-    return_path=False,
-    output_path="output.mid",
+    Yo: npt.NDArray[np.float32],
+    Yp: npt.NDArray[np.float32],
+    Yn: npt.NDArray[np.float32],
+    threshold: float = 0.5,
+    frame_rate: int = 100,
+    velocity: int = 100,
+    return_path: bool | str = False,
+    output_path: str = "output.mid",
 ):
     # Apply thresholding to the posteriorgrams
     onsets = Yo > threshold
@@ -51,31 +54,32 @@ def posteriorgrams_to_midi(
                 if duration > 0:
                     start_time = t * time_per_frame
                     end_time = (t + duration) * time_per_frame
-                    note_events.append(
+                    note_events.append(  # type: ignore
                         (pitch + 21, start_time, end_time)
                     )  # MIDI pitch offset (21 = A0)
 
     # Create MIDI
     midi = pretty_midi.PrettyMIDI()
     instrument = pretty_midi.Instrument(program=0)  # Acoustic Grand Piano
-    for pitch, start, end in note_events:
+    for pitch, start, end in note_events:  # type: ignore
         midi_note = pretty_midi.Note(
-            velocity=velocity, pitch=pitch, start=start, end=end
+            velocity=velocity, pitch=pitch, start=start, end=end  # type: ignore
         )
-        instrument.notes.append(midi_note)
-    midi.instruments.append(instrument)
+        instrument.notes.append(midi_note)  # type: ignore
+    midi.instruments.append(instrument)  # type: ignore
 
     if return_path:
-        midi.write(output_path)
+        midi.write(output_path)  # type: ignore
         return output_path
     else:
         return midi
 
 
-def postprocess(yo, yp, yn):
-    yo, yp, yn = [
-        x.squeeze().detach().cpu().numpy() for x in (yo, yp, yn)
+def postprocess(yo: torch.Tensor, yp: torch.Tensor, yn: torch.Tensor):
+    yo_np, yp_np, yn_np = [  # type: ignore
+        x.squeeze().detach().cpu().numpy() for x in (yo, yp, yn)  # type: ignore
     ]  # Remove batch dimension
-    midi = posteriorgrams_to_midi(yo, yp, yn, threshold=0.5, frame_rate=100)
+    
+    midi = posteriorgrams_to_midi(yo_np, yp_np, yn_np, threshold=0.5, frame_rate=100)  # type: ignore
 
     return midi

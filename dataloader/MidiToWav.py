@@ -7,10 +7,10 @@ def midi_to_wav(
     sound_font: str,
     verbose: bool = False,
     sample_rate: int = 44100,
-    gain=0.2,
+    gain: float = 0.2,
 ) -> None:
     """
-    Converts a midi file to an audio file	
+    Converts a midi file to an audio file
 
     ---------------------------------------------------------------------
     PARAMETERS
@@ -21,7 +21,7 @@ def midi_to_wav(
     - verbose: if the output from fluidsynth should be printed or not
     - sample_rate: the sample rate for the output audio file
     - gain: the gain for fluidsynth
-    """    
+    """
 
     if verbose:
         stdout = None

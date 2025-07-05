@@ -38,7 +38,7 @@ def is_dataset_ok() -> bool:
     Whether the dataset folder is considered correct or not
     """
 
-    nums_midis = {}
+    nums_midis: dict[str, int] = {}
 
     try:
         assert os.path.isdir(Settings.dataset_folder)
@@ -68,7 +68,7 @@ def is_dataset_ok() -> bool:
         return False
 
 
-def __are_wav_ok(num_midis: dict[Split, int]):
+def __are_wav_ok(num_midis: dict[str, int]):
     """
     Checks if the wav part of the dataset is reasonably correct
 

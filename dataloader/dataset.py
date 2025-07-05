@@ -3,6 +3,8 @@ import platform
 import subprocess
 
 import numpy as np
+import numpy.typing as npt
+from torch.utils.data.dataset import Dataset as TorchDataset
 
 from dataloader.dataset_folder_management import download_dataset, is_dataset_ok
 from dataloader.Song import Song
@@ -10,8 +12,15 @@ from dataloader.split import Split
 from settings import Settings
 
 
-class DataSet:
-    def __init__(self, split: Split, duration: None | float | tuple[float, float]):
+class DataSet(
+    TorchDataset[
+        tuple[
+            tuple[npt.NDArray[np.uint16], int, int, int],
+            npt.NDArray[np.float32],
+        ]
+    ]
+):
+    def __init__(self, split: Split, duration: None | int | tuple[int, int]):
         """
         Creates a new dataset for a specific split.
 
@@ -42,10 +51,20 @@ class DataSet:
         if self.__single_audio:
             split = Split.VALIDATION
 
-        folder_path = os.path.join(Settings.dataset_folder, split.value, "midi")
+        folder_path = os.path.join(Settings.dataset_folder, str(split.value), "midi")
         self.__data = [
             os.path.join(folder_path, file) for file in os.listdir(folder_path)
         ]
+
+        if Settings.always_same_portion and self.__duration is not None:
+            self.__cuts: list[tuple[float, float] | None] | None = []
+
+            for path in self.__data:
+                song = Song.from_path(path)
+                self.__cuts.append(song.choose_cut_boundary(self.__duration))
+
+        else:
+            self.__cuts = None
 
         if self.__single_audio:
             self.__data = [self.__data[0]]
@@ -63,7 +82,7 @@ class DataSet:
 
     def __getitem__(
         self, index: int
-    ) -> tuple[tuple[np.ndarray, int, int, int], np.ndarray]:
+    ) -> tuple[tuple[npt.NDArray[np.uint16], int, int, int], npt.NDArray[np.float32]]:
         """
         Returns the index-th song in the dataset
 
@@ -91,15 +110,21 @@ class DataSet:
         )
         song = Song.from_path(self.__data[index], wav_path=wav_path)
 
-        crop_region = song.choose_cut_boundary(self.__duration)
-        if crop_region is not None:
-            if self.__single_audio:
-                crop_region = (0, crop_region[1]-crop_region[0])
-            
-            song = song.cut(crop_region[0], crop_region[1])
+        if self.__duration is not None:
 
-        if Settings.generate_audio_on_download:
-            return song.to_np(), song.load_cut_wav(*crop_region)
+            if self.__cuts is not None:
+                crop_region = self.__cuts[index]
+            else:
+                crop_region = song.choose_cut_boundary(self.__duration)
+
+            if crop_region is not None:
+                if self.__single_audio:
+                    crop_region = (0, crop_region[1] - crop_region[0])
+
+                song = song.cut(crop_region[0], crop_region[1])
+
+            if Settings.generate_audio_on_download and crop_region is not None:
+                return song.to_np(), song.load_cut_wav(*crop_region)
 
         return song.to_np(), song.to_wav()
 

@@ -37,6 +37,7 @@ class Settings:
     tmp_audio_file = "tmp.wav"
     seconds = 2
     max_midi_messages = 300
+    always_same_portion = False  # Warn: slow at creating the dataset
 
     # model settings
     hop_length = 512
