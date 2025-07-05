@@ -8,8 +8,10 @@ from dataloader.Song import VALID_FIELDS_PER_MSG_TYPE
 def np_midi_loss(
     pred_midi: torch.Tensor,
     pred_len: torch.Tensor,
+    pred_tpb: torch.Tensor,
     target_midi: torch.Tensor,
     target_len: torch.Tensor,
+    target_tpb: torch.Tensor,
 ) -> torch.Tensor:
     target_len = target_len.to(torch.int32)
     target_midi = target_midi.to(torch.int32)
@@ -20,6 +22,8 @@ def np_midi_loss(
     my_sigmoid: Callable[[torch.Tensor], torch.Tensor] = (
         lambda x: 2 / (1 + torch.exp(-0.5 * x)) - 1
     )
+
+    loss_tpb = torch.abs(pred_tpb - target_tpb)
 
     # Start by penalizing for missing or extra midi messages
     # Each message added or missing is considered as an error of 600
@@ -34,7 +38,9 @@ def np_midi_loss(
     # All the following applies only to the cells of valid messages
 
     # Penalize putting a message at the wrong time
-    tick_errors = torch.abs(target_midi[:, :, 0] - pred_midi[:, :, 0])
+    tick_errors = torch.abs(
+        target_midi[:, :, 0] - pred_midi[:, :, 0] * (pred_tpb / target_tpb)
+    )
     loss_wrong_time = torch.sum(mask * tick_errors)
 
     # Penalize choosing the wrong message type
@@ -57,4 +63,10 @@ def np_midi_loss(
     field_deltas = torch.abs(target_midi - pred_midi)
     loss_field_values = torch.sum(field_deltas * fields_meaningful)
 
-    return loss_wrong_num_msg + loss_wrong_time + loss_wrong_message + loss_field_values
+    return (
+        loss_wrong_num_msg
+        + loss_wrong_time
+        + loss_wrong_message
+        + loss_field_values
+        + loss_tpb
+    )

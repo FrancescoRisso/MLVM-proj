@@ -126,11 +126,13 @@ def train_one_epoch(
 
             total_loss = sum(loss.values())
 
-        else:
+        else:  # RNN
             assert isinstance(model, HarmonicRNN)
             audios = audios.reshape((audios.shape[0], -1, s.sample_rate))
-            pred_midi, pred_len = model(audios)
-            total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
+            pred_midi, pred_len, pred_tpb = model(audios)
+            total_loss = np_midi_loss(
+                pred_midi, pred_len, pred_tpb, midis_np, nums_messages, ticks_per_beats
+            )
 
         total_loss.backward()  # type: ignore
         optimizer.step()

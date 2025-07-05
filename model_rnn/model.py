@@ -43,7 +43,15 @@ class HarmonicRNN(nn.Module):
             device=Settings.device,
         )
 
-    def forward(self, batched_input: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        self.__ticks_per_beat_generator = nn.Linear(
+            in_features=Settings.hidden_size,
+            out_features=1,
+            device=Settings.device,
+        )
+
+    def forward(
+        self, batched_input: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Given an audio file, uses the RNN to create its corresponding midi
 
@@ -76,6 +84,8 @@ class HarmonicRNN(nn.Module):
         _, hidden_states = self.__encoder(batched_input)
         hidden_states = hidden_states.reshape((-1, batch_size, Settings.hidden_size))
 
+        ticks_per_beat = self.__ticks_per_beat_generator(hidden_states).flatten()
+
         num_messages = self.__num_msg_generator(hidden_states).flatten()
         midi = torch.tensor(
             np.empty(shape=(batch_size, Settings.max_midi_messages, 6)),
@@ -95,4 +105,4 @@ class HarmonicRNN(nn.Module):
         out = out.reshape((-1, Settings.hidden_size))
         midi = self.__linear_output(out).reshape((*shape[:-1], 6))
 
-        return midi, num_messages
+        return midi, num_messages, ticks_per_beat
