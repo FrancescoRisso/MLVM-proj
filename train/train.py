@@ -2,13 +2,15 @@ import os
 import random
 import sys
 from datetime import datetime
+
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
 import torch
 import torch.optim as optim
 import tqdm
-from torch.utils.data import DataLoader
-
 import wandb
+from torch.utils.data import DataLoader
 
 from dataloader.dataset import DataSet
 from dataloader.Song import Song
@@ -17,23 +19,33 @@ from model.model import HarmonicCNN
 from model_rnn.model import HarmonicRNN
 from settings import Model
 from settings import Settings as s
+from train.evaluate import evaluate
 from train.losses import harmoniccnn_loss
 from train.rnn_losses import np_midi_loss
-from train.evaluate import evaluate
 from train.utils import (
-    midi_to_label_matrices,
-    to_tensor,
     binary_classification_metrics,
-    soft_continuous_accuracy,
-    should_log_image,
+    midi_to_label_matrices,
     plot_fixed_sample,
     plot_harmoniccnn_outputs,
+    should_log_image,
+    soft_continuous_accuracy,
+    to_tensor,
 )
 
 
 def train_one_epoch(
-    model: HarmonicCNN | HarmonicRNN, dataloader, optimizer, device, epoch, session_dir
-):
+    model: HarmonicCNN | HarmonicRNN,
+    dataloader: DataLoader[
+        tuple[
+            tuple[npt.NDArray[np.uint16], int, int, int],
+            npt.NDArray[np.float32] | torch.Tensor,
+        ]
+    ],
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    epoch: int,
+    session_dir: str,
+) -> tuple[float, dict[str, float]]:
 
     model.train()
 
@@ -42,7 +54,7 @@ def train_one_epoch(
     total_batches = len(dataloader)
 
     # Accumulatore globale per le metriche di YP
-    yp_metrics_accumulator = {"TP": 0, "FP": 0, "FN": 0}
+    yp_metrics_accumulator = {"TP": 0.0, "FP": 0.0, "FN": 0.0}
 
     for _, batch in tqdm.tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
@@ -51,10 +63,12 @@ def train_one_epoch(
         optimizer.zero_grad()
 
         if s.model == Model.CNN:
-            yo_true_batch = []
-            yn_true_batch = []
-            yp_true_batch = []
-            audio_input_batch = []
+
+            yo_true_batch: list[torch.Tensor] = []
+            yn_true_batch: list[torch.Tensor] = []
+            yp_true_batch: list[torch.Tensor] = []
+
+            audio_input_batch: list[torch.Tensor] = []
 
             for i in range(midis_np.shape[0]):
                 midi = Song.from_np(
@@ -71,14 +85,17 @@ def train_one_epoch(
                     yn_true_batch.append(to_tensor(yn).to(device))
                 audio_input_batch.append(audios[i].to(device))
 
-            yo_true_batch = torch.stack(yo_true_batch)
-            yp_true_batch = torch.stack(yp_true_batch)
-            if not s.remove_yn:
-                yn_true_batch = torch.stack(yn_true_batch)
+            yo_true_batch_stacked = torch.stack(yo_true_batch)
+            yp_true_batch_stacked = torch.stack(yp_true_batch)
 
-            audio_input_batch = torch.stack(audio_input_batch)
+            if s.remove_yn:
+                yn_true_batch_stacked = None
+            else:
+                yn_true_batch_stacked = torch.stack(yn_true_batch)
 
-            (yo_pred, yp_pred, yn_pred) = model(audio_input_batch)
+            audio_input_batch_stacked = torch.stack(audio_input_batch)
+
+            (yo_pred, yp_pred, yn_pred) = model(audio_input_batch_stacked)
 
             yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
 
@@ -87,20 +104,22 @@ def train_one_epoch(
             if not s.remove_yn:
                 yn_pred = yn_pred.squeeze(1)
 
-            batch_metrics = binary_classification_metrics(yp_pred_sig, yp_true_batch)
+            batch_metrics = binary_classification_metrics(
+                yp_pred_sig, yp_true_batch_stacked
+            )
             for key in ["TP", "FP", "FN"]:
                 yp_metrics_accumulator[key] += batch_metrics[key]
 
-            accuracy = soft_continuous_accuracy(yp_pred_sig, yp_true_batch)
+            accuracy = soft_continuous_accuracy(yp_pred_sig, yp_true_batch_stacked)
             total_accuracy += accuracy
 
             loss = harmoniccnn_loss(
                 yo_pred,
                 yp_pred,
-                yo_true_batch,
-                yp_true_batch,
+                yo_true_batch_stacked,
+                yp_true_batch_stacked,
                 yn_pred,
-                yn_true_batch,
+                yn_true_batch_stacked,
                 label_smoothing=s.label_smoothing,
                 weighted=s.weighted,
             )
@@ -113,9 +132,11 @@ def train_one_epoch(
             pred_midi, pred_len = model(audios)
             total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
 
-        total_loss.backward()
+        total_loss.backward()  # type: ignore
         optimizer.step()
-        running_loss += total_loss.item()
+        cur_loss = total_loss.item()  # type: ignore
+        assert isinstance(cur_loss, float)
+        running_loss += cur_loss
 
     if s.save_model:
         os.makedirs(session_dir, exist_ok=True)
@@ -127,7 +148,7 @@ def train_one_epoch(
         print(f"Model saved as '{path}'")
 
     if s.model == Model.RNN:
-        return running_loss / total_batches, None, None
+        return running_loss / total_batches, {}
 
     # Calcolo metriche globali per CNN
     tp = yp_metrics_accumulator["TP"]
@@ -160,12 +181,11 @@ def train():
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     session_dir = os.path.join("model_saves")
 
-    if s.model == Model.CNN:
-        project_name = f"CNN_{timestamp}"
-        if s.single_element_training:
-            project_name = f"CNN_single_{timestamp}"
-    else:
-        project_name = f"RNN_{timestamp}"
+    project_name = (
+        ("CNN" if s.model == Model.CNN else "RNN")
+        + ("_single" if s.single_element_training else "")
+        + f"_{timestamp}"
+    )
 
     wandb.init(
         project="MLVM-Project",
@@ -214,7 +234,10 @@ def train():
         else:
             model_path = os.path.join(session_dir, "harmonicrnn.pth")
 
-        if not s.single_element_training:
+        if s.single_element_training:
+            avg_val_loss = 0
+            val_metrics = {}
+        else:
             print("Evaluating on validation set...")
             avg_val_loss, val_metrics = evaluate(model_path, Split.VALIDATION)
             print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
@@ -273,10 +296,13 @@ def train():
 
                 title_prefix = "Ground Truth"
                 gt_fig = plot_harmoniccnn_outputs(
-                    yo_true, yp_true, yn_true, title_prefix
+                    torch.Tensor(yo_true),
+                    torch.Tensor(yp_true),
+                    torch.Tensor(yn_true),
+                    title_prefix,
                 )
 
-                # Log both
+                Log both
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(

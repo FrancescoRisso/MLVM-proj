@@ -6,10 +6,11 @@ from typing import Iterable
 
 import librosa
 import numpy as np
+import numpy.typing as npt
 import torch
-from mido import MidiFile, MidiTrack, second2tick
-from mido.messages import BaseMessage, Message
-from mido.midifiles.meta import MetaMessage
+from mido import MidiFile, MidiTrack, second2tick  # type: ignore
+from mido.messages import BaseMessage, Message  # type: ignore
+from mido.midifiles.meta import MetaMessage  # type: ignore
 
 from dataloader.MidiToWav import midi_to_wav
 from settings import Settings
@@ -22,25 +23,27 @@ NOTE_OFF = 5
 PROGRAM_CHANGE = 6
 TIME_SIGNATURE = 7
 
-VALID_FIELDS_PER_MSG_TYPE = np.empty(shape=(8, 6), dtype=np.bool)
+TMP_VALID_FIELDS_PER_MSG_TYPE = np.empty(shape=(8, 6), dtype=np.bool)
 
 # fmt: off
 # ms_type 0 for messages after song end
-VALID_FIELDS_PER_MSG_TYPE[0]              = (0, 0, 0, 0, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[SET_TEMPO]      = (1, 1, 1, 0, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[END_OF_TRACK]   = (1, 1, 0, 0, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[CONTROL_CHANGE] = (1, 1, 1, 1, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[NOTE_ON]        = (1, 1, 1, 1, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[NOTE_OFF]       = (1, 1, 1, 0, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[PROGRAM_CHANGE] = (1, 1, 1, 0, 0, 0)
-VALID_FIELDS_PER_MSG_TYPE[TIME_SIGNATURE] = (1, 1, 1, 1, 1, 1)
+TMP_VALID_FIELDS_PER_MSG_TYPE[0]              = (0, 0, 0, 0, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[SET_TEMPO]      = (1, 1, 1, 0, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[END_OF_TRACK]   = (1, 1, 0, 0, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[CONTROL_CHANGE] = (1, 1, 1, 1, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[NOTE_ON]        = (1, 1, 1, 1, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[NOTE_OFF]       = (1, 1, 1, 0, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[PROGRAM_CHANGE] = (1, 1, 1, 0, 0, 0)
+TMP_VALID_FIELDS_PER_MSG_TYPE[TIME_SIGNATURE] = (1, 1, 1, 1, 1, 1)
 # fmt: on
 
-VALID_FIELDS_PER_MSG_TYPE = torch.tensor(VALID_FIELDS_PER_MSG_TYPE)
+VALID_FIELDS_PER_MSG_TYPE = torch.tensor(TMP_VALID_FIELDS_PER_MSG_TYPE)
 
 
 class Song:
-    def __init__(self, midi: MidiFile, tempo=None, wav_path: None | str = None):
+    def __init__(
+        self, midi: MidiFile, tempo: int | None = None, wav_path: None | str = None
+    ):
         """
         Creates a new song, starting from a midi object
 
@@ -115,7 +118,7 @@ class Song:
     @classmethod
     def from_np(
         cls,
-        data: np.ndarray,
+        data: npt.NDArray[np.uint16],
         tempo: int,
         ticks_per_beat: int,
         num_messages: int,
@@ -146,7 +149,7 @@ class Song:
         for i in range(num_messages):
             midi_msg = np_to_msg(data[i])
             if midi_msg is not None:
-                track.append(midi_msg)
+                track.append(midi_msg)  # type: ignore
 
         return Song.from_tracks(
             [track], tempo=tempo, ticks_per_beat=ticks_per_beat, wav_path=wav_path
@@ -162,12 +165,13 @@ class Song:
         if self.__tempo is not None:
             return
 
-        for track in self.__midi.tracks:
+        for track in self.__midi.tracks:  # type: ignore
             assert isinstance(track, MidiTrack)
 
-            for msg in track:
-                if isinstance(msg, MetaMessage) and msg.type == "set_tempo":
-                    self.__tempo = msg.tempo
+            for msg in track:  # type: ignore
+                if isinstance(msg, MetaMessage) and msg.type == "set_tempo":  # type: ignore
+                    assert isinstance(msg.tempo, int)  # type: ignore
+                    self.__tempo = msg.tempo  # type: ignore
                     return
 
     def cut(self, start_second: float, end_second: float) -> Song:
@@ -189,7 +193,7 @@ class Song:
         ------
         The song obtained by the slicing process
         """
-        control_track, music_track = self.__midi.tracks[0:2]
+        control_track, music_track = self.__midi.tracks[0:2]  # type: ignore
 
         assert isinstance(music_track, MidiTrack)
 
@@ -210,25 +214,26 @@ class Song:
 
         # Meta messages are ignored
 
-        cur_tick = 0
-        for midi_msg in music_track:
+        cur_tick: int = 0
+        for midi_msg in music_track:  # type: ignore
             assert isinstance(midi_msg, BaseMessage)
 
             # If the part to be cut is finished, exit the loop
-            if cur_tick + midi_msg.time > end_tick:
+            if cur_tick + midi_msg.time > end_tick:  # type: ignore
                 break
 
             # Compute current tick (cumulative)
-            cur_tick += midi_msg.time
+            assert isinstance(midi_msg.time, int)  # type: ignore
+            cur_tick += midi_msg.time  # type: ignore
 
             # If it's a note, update the running_notes variable
-            if midi_msg.type in ["note_on", "note_off"]:
-                midi_msg = self.__process_note(midi_msg, running_notes)
+            if midi_msg.type in ["note_on", "note_off"]:  # type: ignore
+                midi_msg = self.__process_note(midi_msg, running_notes)  # type: ignore
 
             if cur_tick < start_tick:
                 # Store control messages to add them at the start of the track
-                if midi_msg.type == "control_change":
-                    control_channels_status[midi_msg.control] = midi_msg.value
+                if midi_msg.type == "control_change":  # type: ignore
+                    control_channels_status[midi_msg.control] = midi_msg.value  # type: ignore
 
             else:
                 if len(cut_track) == 0:
@@ -238,13 +243,13 @@ class Song:
                     )
                     midi_msg.time = cur_tick - start_tick
 
-                cut_track.append(midi_msg)
+                cut_track.append(midi_msg)  # type: ignore
 
         self.__turn_off_running_notes(cut_track, running_notes, end_tick - cur_tick)
 
-        for m in control_track:
-            if m.time == 0:
-                cut_track.insert(0, m)
+        for m in control_track:  # type: ignore
+            if m.time == 0:  # type: ignore
+                cut_track.insert(0, m)  # type: ignore
             else:
                 break
 
@@ -272,10 +277,10 @@ class Song:
         for note, vel in enumerate(running_notes):
             if vel != None:
                 msg = Message("note_off", channel=0, note=note, velocity=0, time=time)
-                cut_track.append(msg)
+                cut_track.append(msg)  # type: ignore
                 time = 0
 
-        cut_track.append(MetaMessage("end_of_track", time=time))
+        cut_track.append(MetaMessage("end_of_track", time=time))  # type: ignore
 
     def __first_message_of_cut(
         self,
@@ -309,12 +314,12 @@ class Song:
                 msg = Message(
                     "control_change", channel=0, control=ctrl, value=val, time=0
                 )
-                cut_track.append(msg)
+                cut_track.append(msg)  # type: ignore
 
         for note, vel in enumerate(running_notes):
             if vel != None:
                 msg = Message("note_on", channel=0, note=note, velocity=vel, time=0)
-                cut_track.append(msg)
+                cut_track.append(msg)  # type: ignore
 
     def __process_note(
         self, midi_msg: Message, running_notes: list[int | None]
@@ -340,19 +345,19 @@ class Song:
         A message equivalent to the input one, that has always type
         "note_off" if the velocity is 0
         """
-        if midi_msg.type == "note_on" and midi_msg.velocity != 0:
-            running_notes[midi_msg.note] = midi_msg.velocity
+        if midi_msg.type == "note_on" and midi_msg.velocity != 0:  # type: ignore
+            running_notes[midi_msg.note] = midi_msg.velocity  # type: ignore
             return midi_msg
 
         else:
             # note_on with velocity=0 is equivalent to note_off
-            running_notes[midi_msg.note] = None
+            running_notes[midi_msg.note] = None  # type: ignore
             return Message(
                 "note_off",
-                channel=midi_msg.channel,
-                note=midi_msg.note,
-                velocity=midi_msg.velocity,
-                time=midi_msg.time,
+                channel=midi_msg.channel,  # type: ignore
+                note=midi_msg.note,  # type: ignore
+                velocity=midi_msg.velocity,  # type: ignore
+                time=midi_msg.time,  # type: ignore
             )
 
     def save(self, fname: str) -> None:
@@ -364,7 +369,7 @@ class Song:
         ----------
         - fname: the file where to store the midi
         """
-        self.__midi.save(fname)
+        self.__midi.save(fname)  # type: ignore
 
     def get_midi(self) -> MidiFile:
         """
@@ -378,7 +383,7 @@ class Song:
         return self.__midi
 
     def choose_cut_boundary(
-        self, duration: None | float | tuple[float, float]
+        self, duration: None | int | tuple[int, int]
     ) -> None | tuple[float, float]:
         """
         Given a cutting duration option, chooses the start and end second
@@ -417,7 +422,7 @@ class Song:
             if max > self.__midi.length:
                 max = self.__midi.length
 
-            duration = random.uniform(min, max)
+            duration = random.randint(min, max)
 
         else:
             if duration > self.__midi.length:
@@ -426,7 +431,7 @@ class Song:
         start = random.uniform(0, self.__midi.length - duration)
         return start, start + duration
 
-    def to_wav(self, verbose: bool = False) -> np.ndarray:
+    def to_wav(self, verbose: bool = False) -> npt.NDArray[np.float32]:
         """
         Create a wav representation of the song
 
@@ -454,16 +459,18 @@ class Song:
                 sample_rate=Settings.sample_rate,
             )
 
-            y, _ = librosa.load(
+            y, _ = librosa.load(  # type: ignore
                 Settings.tmp_audio_file,
                 sr=Settings.sample_rate,
                 duration=Settings.seconds,
             )
 
+            assert isinstance(y, np.ndarray) and y.dtype == np.float32  # type: ignore
+
             os.remove(Settings.tmp_midi_file)
             os.remove(Settings.tmp_audio_file)
 
-            return y
+            return y  # type: ignore
 
         except FileNotFoundError:
             os.remove(Settings.tmp_midi_file)
@@ -471,7 +478,7 @@ class Song:
             print('Please install it with "sudo apt install fluidsynth"')
             exit(-1)
 
-    def load_cut_wav(self, start: int, end: int) -> np.ndarray:
+    def load_cut_wav(self, start: float, end: float) -> npt.NDArray[np.float32]:
         """
         Loads a cut of the corresponding audio file
 
@@ -489,16 +496,16 @@ class Song:
 
         assert self.__wav_path is not None
 
-        song, _ = librosa.load(
+        song, _ = librosa.load(  # type: ignore
             self.__wav_path,
             sr=Settings.sample_rate,
             duration=end,
         )
 
         samples_to_keep = Settings.seconds * Settings.sample_rate
-        return song[-samples_to_keep:]
+        return song[-samples_to_keep:]  # type: ignore
 
-    def to_np(self) -> tuple[np.ndarray, int, int, int]:
+    def to_np(self) -> tuple[npt.NDArray[np.uint16], int, int, int]:
         """
         Converts a song to a numpy array
 
@@ -514,10 +521,12 @@ class Song:
         res = np.zeros(shape=(Settings.max_midi_messages, 6), dtype=np.uint16)
 
         idx = 0
-        for msg in self.__midi.tracks[0]:
+        for msg in self.__midi.tracks[0]:  # type: ignore
+            assert isinstance(msg, Message) or isinstance(msg, MetaMessage)
+
             if idx >= Settings.max_midi_messages:
                 raise Exception(
-                    f"A song with {len(self.__midi.tracks[0])} messages does not fit on the allocated {Settings.max_midi_messages}"
+                    f"A song with {len(self.__midi.tracks[0])} messages does not fit on the allocated {Settings.max_midi_messages}"  # type: ignore
                 )
 
             if self.__msg_to_np(msg, res[idx]):
@@ -525,9 +534,12 @@ class Song:
             else:
                 print(f'WARN: To np not implemented for message "{msg}"')
 
-        return res, self.__tempo, self.__ticks_per_beat, len(self.__midi.tracks[0])
+        assert isinstance(self.__tempo, int)
+        return res, self.__tempo, self.__ticks_per_beat, len(self.__midi.tracks[0])  # type: ignore
 
-    def __msg_to_np(self, msg: Message | MetaMessage, res: np.ndarray) -> bool:
+    def __msg_to_np(
+        self, msg: Message | MetaMessage, res: npt.NDArray[np.uint16]
+    ) -> bool:
         """
         Stores a midi message into a np array in a suitable format
 
@@ -543,44 +555,44 @@ class Song:
         if the message was recognised and saved
         """
 
-        if isinstance(msg.time, float):
-            msg.time = second2tick(msg.time, self.__ticks_per_beat, self.__tempo)
+        if isinstance(msg.time, float):  # type: ignore
+            msg.time = second2tick(msg.time, self.__ticks_per_beat, self.__tempo)  # type: ignore
 
         if isinstance(msg, MetaMessage):
-            if msg.type == "time_signature":
+            if msg.type == "time_signature":  # type: ignore
                 res[:] = (
-                    msg.time,
+                    msg.time,  # type: ignore
                     TIME_SIGNATURE,
-                    msg.numerator,
-                    msg.denominator,
-                    msg.clocks_per_click,
-                    msg.notated_32nd_notes_per_beat,
+                    msg.numerator,  # type: ignore
+                    msg.denominator,  # type: ignore
+                    msg.clocks_per_click,  # type: ignore
+                    msg.notated_32nd_notes_per_beat,  # type: ignore
                 )
 
-            elif msg.type == "set_tempo":
-                res[:3] = (msg.time, SET_TEMPO, msg.tempo // 1000)
+            elif msg.type == "set_tempo":  # type: ignore
+                res[:3] = (msg.time, SET_TEMPO, msg.tempo // 1000)  # type: ignore
 
-            elif msg.type == "end_of_track":
-                res[:2] = (msg.time, END_OF_TRACK)
+            elif msg.type == "end_of_track":  # type: ignore
+                res[:2] = (msg.time, END_OF_TRACK)  # type: ignore
 
             else:
                 return False
 
         # not MetaMessage
         else:
-            if msg.type == "control_change":
-                res[:4] = (msg.time, CONTROL_CHANGE, msg.control, msg.value)
+            if msg.type == "control_change":  # type: ignore
+                res[:4] = (msg.time, CONTROL_CHANGE, msg.control, msg.value)  # type: ignore
 
-            elif msg.type == "note_off" or (
-                msg.type == "note_on" and msg.velocity == 0
+            elif msg.type == "note_off" or (  # type: ignore
+                msg.type == "note_on" and msg.velocity == 0  # type: ignore
             ):
-                res[:3] = (msg.time, NOTE_OFF, msg.note)
+                res[:3] = (msg.time, NOTE_OFF, msg.note)  # type: ignore
 
-            elif msg.type == "note_on":
-                res[:4] = (msg.time, NOTE_ON, msg.note, msg.velocity)
+            elif msg.type == "note_on":  # type: ignore
+                res[:4] = (msg.time, NOTE_ON, msg.note, msg.velocity)  # type: ignore
 
-            elif msg.type == "program_change":
-                res[:3] = (msg.time, PROGRAM_CHANGE, msg.program)
+            elif msg.type == "program_change":  # type: ignore
+                res[:3] = (msg.time, PROGRAM_CHANGE, msg.program)  # type: ignore
 
             else:
                 return False
@@ -588,7 +600,7 @@ class Song:
         return True
 
 
-def np_to_msg(arr: np.ndarray) -> Message | MetaMessage | None:
+def np_to_msg(arr: npt.NDArray[np.uint16]) -> Message | MetaMessage | None:
     """
     Converts a midi message from np stored to real message
 
