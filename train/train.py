@@ -330,7 +330,9 @@ def train():
             else:  # RNN
                 audio_input = audio.reshape((1, -1, s.sample_rate))
                 pred_midi, pred_len, pred_tpb = model(torch.Tensor(audio_input))
-                out = Song.from_np(pred_midi, None, int(pred_tpb[0]), int(pred_len[0]))
+                out = Song.from_np(
+                    pred_midi[0], None, int(pred_tpb[0]), int(pred_len[0])
+                )
 
                 wandb.log(
                     {
