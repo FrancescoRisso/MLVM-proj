@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+
 from settings import Settings as s
 
 
@@ -44,11 +45,11 @@ def harmoniccnn_loss(
     yp_logits: torch.Tensor,
     yo_true: torch.Tensor,
     yp_true: torch.Tensor,
-    yn_logits: torch.Tensor = None,
-    yn_true: torch.Tensor = None,
+    yn_logits: torch.Tensor | None = None,
+    yn_true: torch.Tensor | None = None,
     label_smoothing: float = 0.0,
     weighted: bool = False,
-) -> dict:
+) -> dict[str, torch.Tensor]:
 
     if not weighted:
         positive_weight_yo = 0.5

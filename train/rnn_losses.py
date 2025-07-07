@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch
 
 from dataloader.Song import VALID_FIELDS_PER_MSG_TYPE
@@ -15,7 +17,9 @@ def np_midi_loss(
     max_msg_per_input = torch.max(pred_len, target_len)
     min_msg_per_input = torch.min(pred_len, target_len)
 
-    my_sigmoid = lambda x: 2 / (1 + torch.exp(-0.5 * x)) - 1
+    my_sigmoid: Callable[[torch.Tensor], torch.Tensor] = (
+        lambda x: 2 / (1 + torch.exp(-0.5 * x)) - 1
+    )
 
     # Start by penalizing for missing or extra midi messages
     # Each message added or missing is considered as an error of 600

@@ -1,9 +1,9 @@
-import numpy as np
 import librosa
+import numpy as np
+import numpy.typing as npt
 import torch
 
 from settings import Settings
-
 
 # ---------- CQT ----------
 """
@@ -18,14 +18,17 @@ Returns:
 
 
 def constant_q_transform(
-    y: np.ndarray, sr: int, hop_length: int, n_bins: int
-) -> np.ndarray:
+    y: torch.Tensor | npt.NDArray[np.float32], sr: int, hop_length: int, n_bins: int
+) -> npt.NDArray[np.float32]:
     if isinstance(y, torch.Tensor):
-        y = y.cpu().numpy()
+        y = y.cpu().numpy()  # type: ignore
+        assert isinstance(y, np.ndarray) and y.dtype == np.float32
 
     # Ora y è un array NumPy, quindi possiamo passarlo a librosa
-    cqt = librosa.cqt(y, sr=sr, hop_length=hop_length, n_bins=n_bins)
-    return np.abs(cqt)
+    cqt = librosa.cqt(y, sr=sr, hop_length=hop_length, n_bins=n_bins)  # type: ignore
+    assert isinstance(cqt, np.ndarray) and cqt.dtype == np.complex64  # type: ignore
+
+    return np.abs(cqt)  # type: ignore
 
 
 # ---------- Harmonic Stacking ----------
@@ -38,8 +41,10 @@ Returns:
 """
 
 
-def harmonic_stacking(cqt_np: np.ndarray, shifts: list[int]) -> np.ndarray:
-    stacked = []
+def harmonic_stacking(
+    cqt_np: npt.NDArray[np.float32], shifts: list[int]
+) -> npt.NDArray[np.float32]:
+    stacked: list[npt.NDArray[np.float32]] = []
     for shift in shifts:
         shifted = np.roll(cqt_np, shift, axis=0)
         if shift > 0:
@@ -51,9 +56,9 @@ def harmonic_stacking(cqt_np: np.ndarray, shifts: list[int]) -> np.ndarray:
 
 
 # ---------- Preprocessing Function ----------
-def preprocess(y: np.ndarray) -> torch.Tensor:
+def preprocess(y: torch.Tensor) -> torch.Tensor:
 
-    batch = []
+    batch: list[torch.Tensor] = []
 
     for i in range(len(y)):
 
@@ -66,8 +71,7 @@ def preprocess(y: np.ndarray) -> torch.Tensor:
         )  # Add batch dimension
         batch.append(input_tensor)
 
-    batch = torch.stack(batch, dim=0).to(
-        Settings.device
-    )  # Stack the batch and move to device
+    # Stack the batch and move to device
+    stacked_batch = torch.stack(batch, dim=0).to(Settings.device)
 
-    return batch
+    return stacked_batch
