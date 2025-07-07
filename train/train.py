@@ -283,7 +283,12 @@ def train():
                 )
 
         else:  # RNN
-            wandb.log({"loss/train": avg_train_loss})
+            wandb.log(
+                {
+                    "loss/train": avg_train_loss,
+                    "loss/val": avg_val_loss,
+                }
+            )
 
         if should_log_image(epoch):
             d = DataSet(Split.SINGLE_AUDIO, s.seconds)
