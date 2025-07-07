@@ -296,7 +296,7 @@ def train():
 
             (midis_np, tempos, ticks_per_beats, nums_messages), audio = fixed_sample
             midi = Song.from_np(
-                midis_np, tempos, ticks_per_beats, nums_messages
+                midis_np.astype(np.uint16), tempos, ticks_per_beats, nums_messages
             ).get_midi()
 
             if s.model == Model.CNN:
