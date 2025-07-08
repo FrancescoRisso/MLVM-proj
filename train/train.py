@@ -336,7 +336,7 @@ def train():
                 audio_input = audio.reshape((1, -1, s.sample_rate))
                 pred_midi, pred_len, pred_tpb = model(torch.Tensor(audio_input))
                 out = Song.from_np(
-                    pred_midi[0].astype(np.uint16),
+                    pred_midi[0].to(torch.uint16),
                     None,
                     int(pred_tpb[0]),
                     int(pred_len[0]),
