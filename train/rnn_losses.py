@@ -2,7 +2,8 @@ from typing import Callable
 
 import torch
 
-from dataloader.Song import VALID_FIELDS_PER_MSG_TYPE
+from dataloader.Song import NOTE_OFF, NOTE_ON, VALID_FIELDS_PER_MSG_TYPE
+from settings import Settings
 
 
 def np_midi_loss(
@@ -61,6 +62,14 @@ def np_midi_loss(
         fields_meaningful[:, :, i] *= mask
 
     field_deltas = torch.abs(target_midi - pred_midi)
+
+    note_messages = torch.where(
+        torch.logical_or(
+            target_midi[:, :, 1] == NOTE_ON, target_midi[:, :, 1] == NOTE_OFF
+        )
+    )
+    field_deltas[*note_messages, :] *= Settings.notes_messages_loss_multiplier
+
     loss_field_values = torch.sum(field_deltas * fields_meaningful)
 
     return (
