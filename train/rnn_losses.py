@@ -17,12 +17,14 @@ def np_midi_loss(
     target_len = target_len.to(torch.int32)
     target_midi = target_midi.to(torch.int32)
 
+    note_messages: tuple[torch.Tensor, ...] = torch.where(
+        torch.logical_or(
+            target_midi[:, :, 1] == NOTE_ON, target_midi[:, :, 1] == NOTE_OFF
+        )
+    )
+
     max_msg_per_input = torch.max(pred_len, target_len)
     min_msg_per_input = torch.min(pred_len, target_len)
-
-    my_sigmoid: Callable[[torch.Tensor], torch.Tensor] = (
-        lambda x: 2 / (1 + torch.exp(-0.5 * x)) - 1
-    )
 
     loss_tpb = torch.sum(torch.abs(pred_tpb - target_tpb))
 
@@ -46,7 +48,9 @@ def np_midi_loss(
 
     # Penalize choosing the wrong message type
     msg_type_delta = torch.abs(target_midi[:, :, 1] - pred_midi[:, :, 1])
-    loss_wrong_message = torch.sum(mask * my_sigmoid(msg_type_delta))
+    msg_type_amplif = torch.ones_like(msg_type_delta)
+    msg_type_amplif[*note_messages] = Settings.notes_messages_loss_multiplier
+    loss_wrong_message = torch.sum(mask * msg_type_delta * msg_type_amplif)
 
     # Penalize wrong message fields
 
@@ -62,12 +66,6 @@ def np_midi_loss(
         fields_meaningful[:, :, i] *= mask
 
     field_deltas = torch.abs(target_midi - pred_midi)
-
-    note_messages = torch.where(
-        torch.logical_or(
-            target_midi[:, :, 1] == NOTE_ON, target_midi[:, :, 1] == NOTE_OFF
-        )
-    )
     field_deltas[*note_messages, :] *= Settings.notes_messages_loss_multiplier
 
     loss_field_values = torch.sum(field_deltas * fields_meaningful)
