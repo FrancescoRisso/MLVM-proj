@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import random
+from math import log2
 from typing import Iterable
 
 import librosa
@@ -119,7 +120,7 @@ class Song:
     def from_np(
         cls,
         data: npt.NDArray[np.uint16],
-        tempo: int,
+        tempo: int | None,
         ticks_per_beat: int,
         num_messages: int,
         wav_path: None | str = None,
@@ -564,7 +565,7 @@ class Song:
                     msg.time,  # type: ignore
                     TIME_SIGNATURE,
                     msg.numerator,  # type: ignore
-                    msg.denominator,  # type: ignore
+                    log2(msg.denominator),  # type: ignore
                     msg.clocks_per_click,  # type: ignore
                     msg.notated_32nd_notes_per_beat,  # type: ignore
                 )
@@ -620,7 +621,7 @@ def np_to_msg(arr: npt.NDArray[np.uint16]) -> Message | MetaMessage | None:
             "time_signature",
             time=int(arr[0]),
             numerator=int(arr[2]),
-            denominator=int(arr[3]),
+            denominator=2 ** int(arr[3]),
             clocks_per_click=int(arr[4]),
             notated_32nd_notes_per_beat=int(arr[5]),
         )

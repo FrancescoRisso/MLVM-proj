@@ -126,11 +126,13 @@ def train_one_epoch(
 
             total_loss = sum(loss.values())
 
-        else:
+        else:  # RNN
             assert isinstance(model, HarmonicRNN)
             audios = audios.reshape((audios.shape[0], -1, s.sample_rate))
-            pred_midi, pred_len = model(audios)
-            total_loss = np_midi_loss(pred_midi, pred_len, midis_np, nums_messages)
+            pred_midi, pred_len, pred_tpb = model(audios)
+            total_loss = np_midi_loss(
+                pred_midi, pred_len, pred_tpb, midis_np, nums_messages, ticks_per_beats
+            )
 
         total_loss.backward()  # type: ignore
         optimizer.step()
@@ -280,15 +282,26 @@ def train():
                     step=epoch + 1,
                 )
 
-            if should_log_image(epoch):
-                d = DataSet(Split.SINGLE_AUDIO, s.seconds)
-                fixed_sample = d[0]
+        else:  # RNN
+            wandb.log(
+                {
+                    "loss/train": avg_train_loss,
+                    "loss/val": avg_val_loss,
+                }
+            )
+
+        if should_log_image(epoch):
+            d = DataSet(Split.SINGLE_AUDIO, s.seconds)
+            fixed_sample = d[0]
+
+            (midis_np, tempos, ticks_per_beats, nums_messages), audio = fixed_sample
+            midi = Song.from_np(
+                midis_np.astype(np.uint16), tempos, ticks_per_beats, nums_messages
+            ).get_midi()
+
+            if s.model == Model.CNN:
                 fig = plot_fixed_sample(model, fixed_sample, device)
 
-                (midis_np, tempos, ticks_per_beats, nums_messages), _ = fixed_sample
-                midi = Song.from_np(
-                    midis_np, tempos, ticks_per_beats, nums_messages
-                ).get_midi()
                 yo_true, yp_true = midi_to_label_matrices(
                     midi, s.sample_rate, s.hop_length, n_bins=88
                 )
@@ -319,8 +332,25 @@ def train():
                 plt.close(fig)
                 plt.close(gt_fig)
 
-        else:  # RNN TODO
-            pass
+            else:  # RNN
+                audio_input = audio.reshape((1, -1, s.sample_rate))
+                pred_midi, pred_len, pred_tpb = model(torch.Tensor(audio_input))
+                out = Song.from_np(
+                    pred_midi[0].to(torch.uint16),
+                    None,
+                    int(pred_tpb[0]),
+                    int(pred_len[0]),
+                )
+
+                wandb.log(
+                    {
+                        "out_audio": wandb.Audio(out.to_wav(), s.sample_rate),
+                        "ground_truth_audio": (
+                            wandb.Audio(audio, s.sample_rate) if epoch == 0 else None
+                        ),
+                    },
+                    step=epoch + 1,
+                )
 
         if not s.single_element_training:
             if avg_val_loss < best_val_loss - 1e-4:
