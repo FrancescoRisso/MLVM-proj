@@ -60,7 +60,7 @@ class Settings:
     save_model = True
 
     # if True, the model will be trained on a single element
-    single_element_training = True
+    single_element_training = False
 
     # RNN settings
     hidden_size = 10000  # must be even
