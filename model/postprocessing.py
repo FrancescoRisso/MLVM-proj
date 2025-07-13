@@ -2,6 +2,10 @@ import numpy as np
 import numpy.typing as npt
 import pretty_midi  # type: ignore
 import torch
+from settings import Settings as s
+from settings import Model
+from model.model import HarmonicCNN
+import torchaudio
 
 """
     Converts onset, pitch, and note posteriorgrams to a MIDI file.
@@ -39,7 +43,6 @@ def posteriorgrams_to_midi(
     time_per_frame = 1.0 / frame_rate
     note_events = []
     num_frames, num_pitches = Yo.shape
-
     # Iterate through the frames and pitches to find note events
     for t in range(num_frames):
         for pitch in range(num_pitches):
@@ -83,3 +86,34 @@ def postprocess(yo: torch.Tensor, yp: torch.Tensor, yn: torch.Tensor):
     midi = posteriorgrams_to_midi(yo_np, yp_np, yn_np, threshold=0.5, frame_rate=100)  # type: ignore
 
     return midi
+
+def model_eval(
+        model_path: str | None, audio_path: str
+) -> pretty_midi.PrettyMIDI | str:
+    
+    device = s.device
+    print(f"Evaluating on {device}")
+
+    if s.model == Model.RNN:
+        return
+        
+    if model_path is not None:
+        model = HarmonicCNN()
+        model.load_state_dict(torch.load(model_path, map_location=device))
+    else:
+        raise ValueError("No model found insert a valid model")
+    
+    model.eval()
+
+    audio = torchaudio.load(audio_path)[0]  # Load audio file
+
+    with torch.no_grad():
+        # Assume audio is already preprocessed and ready for model input
+        yo_pred, yp_pred, yn_pred = model(audio)
+        
+        yo_pred = yo_pred.squeeze(1)
+        yp_pred = yp_pred.squeeze(1)
+        yn_pred = yn_pred.squeeze(1) if s.remove_yn == False else yp_pred
+
+        midi = postprocess(yo_pred, yp_pred, yn_pred)
+        return midi

@@ -45,7 +45,7 @@ class Settings:
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cpu")
     model: Model = Model.CNN
-    remove_yn = True  # if True, the model will not predict the note matrix
+    remove_yn = False  # if True, the model will not predict the note matrix
 
     # training settings
     pre_trained_model_path = None  # path to a pre-trained model, if any
