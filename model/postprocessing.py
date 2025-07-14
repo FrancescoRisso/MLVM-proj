@@ -35,13 +35,6 @@ def posteriorgrams_to_midi(
     return_path: bool | str = False,
     output_path: str = "trial_audio\output.mid",
 ):
-    # If input is 3D (B, T, P), take first batch
-    if Yo.ndim == 3:
-        Yo = Yo[0]
-    if Yp.ndim == 3:
-        Yp = Yp[0]
-    if Yn.ndim == 3:
-        Yn = Yn[0]
 
     # Apply thresholding to the posteriorgrams
     onsets = Yo > threshold
@@ -88,7 +81,7 @@ def posteriorgrams_to_midi(
 
 def postprocess(yo: torch.Tensor, yp: torch.Tensor, yn: torch.Tensor):
     yo_np, yp_np, yn_np = [  # type: ignore
-        x.squeeze().detach().cpu().numpy() for x in (yo, yp, yn)  # type: ignore
+        x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)  # type: ignore
     ]  # Remove batch dimension
     
     midi = posteriorgrams_to_midi(yo_np, yp_np, yn_np, threshold=0.5, frame_rate=100, return_path=True)  # type: ignore
@@ -121,7 +114,7 @@ def model_eval(
         
 
         yo_pred = torch.sigmoid(yo_pred)
-        yo_pred = yo_pred.squeeze(1)
+        yo_pred = yo_pred.squeeze(1) 
         yp_pred = yp_pred.squeeze(1)
         yn_pred = yn_pred.squeeze(1) if s.remove_yn == False else yp_pred
 

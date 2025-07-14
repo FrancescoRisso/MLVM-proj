@@ -6,8 +6,8 @@ import torch
 
 def main():
 	
-    # train()
-    postprocessing.model_eval("model_saves/best_model.pth","trial_audio/Midicut.mp3")
+    train()
+    postprocessing.model_eval("model_saves/best_model.pth","trial_audio/shouldbesame.wav")
 
 
 if __name__ == "__main__":
