@@ -62,6 +62,9 @@ class Settings:
     # if True, the model will be trained on a single element
     single_element_training = False
 
+    # postprocessing settings
+    threshold = 0.6  # threshold for postprocessing
+
     # RNN settings
     hidden_size = 100000  # must be even
     encoder_num_layers = 1
