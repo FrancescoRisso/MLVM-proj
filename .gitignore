@@ -188,3 +188,6 @@ wandb/
 
 # trial folder
 trial_audio/
+
+# eval plots
+eval_plots/
