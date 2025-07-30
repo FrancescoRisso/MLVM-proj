@@ -185,3 +185,6 @@ model_saves/
 
 # wandb
 wandb/
+
+# eval plots
+eval_plots/

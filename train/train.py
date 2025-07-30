@@ -8,7 +8,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 import torch.optim as optim
-import tqdm
+from tqdm.auto import tqdm
 import wandb
 from torch.utils.data import DataLoader
 
@@ -32,6 +32,123 @@ from train.utils import (
     to_tensor,
 )
 
+
+from tqdm import tqdm  # import corretto della funzione tqdm
+
+
+def save_plot(sample, name, output_dir):
+    f1, idx, audio_input, yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true = sample
+    
+    # Gestione dimensioni tensori
+    yo_pred = yo_pred.squeeze(0).squeeze(0) if len(yo_pred.shape) == 4 else yo_pred.squeeze(0)
+    yp_pred = yp_pred.squeeze(0).squeeze(0) if len(yp_pred.shape) == 4 else yp_pred.squeeze(0)
+    yn_pred = yn_pred.squeeze(0).squeeze(0) if yn_pred is not None and len(yn_pred.shape) == 4 else yn_pred.squeeze(0) if yn_pred is not None else None
+    
+    yo_true = yo_true.squeeze(0).squeeze(0) if len(yo_true.shape) == 4 else yo_true.squeeze(0)
+    yp_true = yp_true.squeeze(0).squeeze(0) if len(yp_true.shape) == 4 else yp_true.squeeze(0)
+    yn_true = yn_true.squeeze(0).squeeze(0) if yn_true is not None and len(yn_true.shape) == 4 else yn_true.squeeze(0) if yn_true is not None else None
+
+    fig_pred = plot_harmoniccnn_outputs(
+        yo_pred,
+        yp_pred,
+        yn_pred,
+        title_prefix=f"Prediction idx {idx}",
+    )
+    fig_gt = plot_harmoniccnn_outputs(
+        yo_true,
+        yp_true,
+        yn_true,
+        title_prefix=f"Ground Truth idx {idx}",
+    )
+    fig_pred.savefig(os.path.join(output_dir, f"{name}_pred_{idx}.png"))
+    fig_gt.savefig(os.path.join(output_dir, f"{name}_gt_{idx}.png"))
+    plt.close(fig_pred)
+    plt.close(fig_gt)
+
+def evaluate_and_plot_extremes(
+    model_path: str, dataset: Split, output_dir: str = "eval_plots", top_k: int = 5
+) -> None:
+    device = s.device
+    print(f"Evaluating model {model_path} for top/bottom F1 samples on {device}")
+
+    # Carica modello
+    model = (
+        HarmonicCNN().to(device) if s.model == Model.CNN else HarmonicRNN().to(device)
+    )
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    # Dataset e loader
+    test_dataset = DataSet(dataset, s.seconds)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    scores = []
+
+    with torch.no_grad():
+        for idx, batch in enumerate(tqdm(test_loader, desc="Computing F1 scores")):
+            (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
+
+            # Estrai label true da MIDI
+            midi = Song.from_np(
+                midis_np[0], tempos[0], ticks_per_beats[0], nums_messages[0]
+            ).get_midi()
+            yo_true, yp_true = midi_to_label_matrices(
+                midi, s.sample_rate, s.hop_length, n_bins=88
+            )
+            yn_true = yp_true if not s.remove_yn else None
+
+            yo_true_t = to_tensor(yo_true).to(device).unsqueeze(0)
+            yp_true_t = to_tensor(yp_true).to(device).unsqueeze(0)
+            yn_true_t = to_tensor(yn_true).to(device).unsqueeze(0) if yn_true is not None else None
+
+            audio_input = audios.to(device)
+
+            # Predizione - MODIFICATO QUI
+            outputs = model(audio_input)
+            if s.remove_yn:
+                yo_pred = outputs[0]
+                yp_pred = outputs[1]
+                yn_pred = None
+            else:
+                yo_pred, yp_pred, yn_pred = outputs
+
+            yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
+
+            # Calcolo metriche (F1 sample-wise)
+            metrics = binary_classification_metrics(yp_pred_sig, yp_true_t)
+            tp, fp, fn = metrics["TP"], metrics["FP"], metrics["FN"]
+            f1 = 2 * tp / (2 * tp + fp + fn + 1e-8)
+
+            scores.append(
+                (
+                    f1,
+                    idx,
+                    audio_input.cpu(),
+                    yo_pred.cpu(),
+                    yp_pred.cpu(),
+                    yn_pred.cpu() if yn_pred is not None else None,
+                    yo_true_t.cpu(),
+                    yp_true_t.cpu(),
+                    yn_true_t.cpu() if yn_true_t is not None else None,
+                )
+            )
+
+    # Ordina per F1 score (decrescente)
+    scores_sorted = sorted(scores, key=lambda x: x[0], reverse=True)
+
+    # Prendi top e bottom k
+    top_samples = scores_sorted[:top_k]
+    bottom_samples = scores_sorted[-top_k:]
+
+    # Salva le immagini
+    for sample in top_samples:
+        save_plot(sample, "best", output_dir)
+    for sample in bottom_samples:
+        save_plot(sample, "worst", output_dir)
+
+    print(f"Saved {top_k} best and {top_k} worst plots to '{output_dir}'")
 
 def train_one_epoch(
     model: HarmonicCNN | HarmonicRNN,
