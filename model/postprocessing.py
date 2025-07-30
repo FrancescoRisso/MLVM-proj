@@ -21,7 +21,6 @@ def posteriorgrams_to_midi(
     return_path: bool | str = False,
     output_path: str = "trial_audio/output.mid",
     audio_duration: float | None = None,
-    min_duration: float = 0.03,
     debug_visual: bool = True
 ):
     # Remove batch dimension if present
@@ -59,7 +58,7 @@ def posteriorgrams_to_midi(
         plt.colorbar()
         plt.show()
 
-    num_frames, num_pitches = Yo.shape
+    num_pitches, num_frames = Yo.shape
 
     if frame_rate is None:
         if audio_duration is None:
@@ -67,16 +66,17 @@ def posteriorgrams_to_midi(
         frame_rate = num_frames / audio_duration
 
     time_per_frame = 1.0 / frame_rate
+    min_duration = time_per_frame * 0.99
     note_events = []
 
     # Main note extraction loop
     for t in range(num_frames):
         for pitch in range(num_pitches):
-            if onsets[t, pitch] and pitches[t, pitch]:
+            if pitches[pitch, t]:
                 start_time = t * time_per_frame
                 end_time = start_time + time_per_frame
                 for dt in range(t + 1, num_frames):
-                    if not notes[dt, pitch]:
+                    if not notes[pitch, dt]:
                         break
                     end_time = (dt + 1) * time_per_frame
                 if end_time - start_time >= min_duration:
