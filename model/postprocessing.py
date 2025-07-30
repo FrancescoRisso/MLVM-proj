@@ -111,7 +111,7 @@ def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     duration_sec = audio_length / sample_rate
     midi = posteriorgrams_to_midi(
         yo_np, yp_np, yn_np,
-        threshold=0.6,
+        threshold=s.threshold,
         audio_duration=duration_sec,
         return_path=True,
         debug_visual=True
