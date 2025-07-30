@@ -49,7 +49,7 @@ class Settings:
 
     # training settings
     pre_trained_model_path = None  # path to a pre-trained model, if any
-    epochs = 200
+    epochs = 10000
     batch_size = 30
     learning_rate = 1e-3
     label_smoothing = 0.0
@@ -60,7 +60,7 @@ class Settings:
     save_model = True
 
     # if True, the model will be trained on a single element
-    single_element_training = True
+    single_element_training = False
 
     # RNN settings
     hidden_size = 100000  # must be even
