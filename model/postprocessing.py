@@ -7,7 +7,9 @@ import torchaudio
 from model.model import HarmonicCNN
 from settings import Model
 from settings import Settings as s
-
+from dataloader.dataset import DataSet
+from dataloader.split import Split
+from train.utils import plot_fixed_sample
 
 def posteriorgrams_to_midi(
     Yo: npt.NDArray[np.float32],
@@ -49,15 +51,12 @@ def posteriorgrams_to_midi(
 
     if debug_visual:
         import matplotlib.pyplot as plt
-        fig, axs = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
-        axs[0].imshow(Yo.T, aspect='auto', origin='lower', cmap='hot')
-        axs[0].set_title("Onset Posteriorgram")
-        axs[1].imshow(Yp.T, aspect='auto', origin='lower', cmap='hot')
-        axs[1].set_title("Pitch Posteriorgram")
-        axs[2].imshow(Yn.T, aspect='auto', origin='lower', cmap='hot')
-        axs[2].set_title("Note Posteriorgram")
-        axs[2].set_xlabel("Frame Index")
-        plt.tight_layout()
+
+        plt.imshow(Yp, aspect='auto', origin='lower', cmap='hot')
+        plt.title("Pitch Posteriorgram (Yp)")
+        plt.xlabel("Frame Index")
+        plt.ylabel("Pitch Index")
+        plt.colorbar()
         plt.show()
 
     num_frames, num_pitches = Yo.shape
@@ -112,7 +111,7 @@ def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     duration_sec = audio_length / sample_rate
     midi = posteriorgrams_to_midi(
         yo_np, yp_np, yn_np,
-        threshold=0.48,
+        threshold=0.6,
         audio_duration=duration_sec,
         return_path=True,
         debug_visual=True
