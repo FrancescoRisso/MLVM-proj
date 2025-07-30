@@ -21,7 +21,7 @@ def posteriorgrams_to_midi(
     return_path: bool | str = False,
     output_path: str = "trial_audio/output.mid",
     audio_duration: float | None = None,
-    debug_visual: bool = True
+    debug: bool = False
 ):
     # Remove batch dimension if present
     if Yo.ndim == 3:
@@ -41,15 +41,17 @@ def posteriorgrams_to_midi(
     pitches = Yp > threshold
     notes = Yn > threshold
 
-    print(f"Yo shape: {Yo.shape}, max: {Yo.max():.4f}")
-    print(f"Yp shape: {Yp.shape}, max: {Yp.max():.4f}")
-    print(f"Yn shape: {Yn.shape}, max: {Yn.max():.4f}")
-    print("Onset activations:", np.sum(onsets))
-    print("Pitch activations:", np.sum(pitches))
-    print("Note activations:", np.sum(notes))
 
-    if debug_visual:
+
+    if debug:
         import matplotlib.pyplot as plt
+
+        print(f"Yo shape: {Yo.shape}, max: {Yo.max():.4f}")
+        print(f"Yp shape: {Yp.shape}, max: {Yp.max():.4f}")
+        print(f"Yn shape: {Yn.shape}, max: {Yn.max():.4f}")
+        print("Onset activations:", np.sum(onsets))
+        print("Pitch activations:", np.sum(pitches))
+        print("Note activations:", np.sum(notes))
 
         plt.imshow(Yp, aspect='auto', origin='lower', cmap='hot')
         plt.title("Pitch Posteriorgram (Yp)")
@@ -114,7 +116,7 @@ def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
         threshold=s.threshold,
         audio_duration=duration_sec,
         return_path=True,
-        debug_visual=True
+        debug=False
     )
     return midi
 
