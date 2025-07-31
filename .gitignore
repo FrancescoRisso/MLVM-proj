@@ -185,3 +185,6 @@ model_saves/
 
 # wandb
 wandb/
+
+# trial folder
+trial_audio/
