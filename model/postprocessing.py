@@ -32,16 +32,14 @@ def posteriorgrams_to_midi(
         Yn = Yn[0]
 
     # Restrict pitch range to first 88 bins (like piano)
-    max_pitch_bins = min(Yo.shape[1], 88)
-    Yo = Yo[:, :max_pitch_bins]
-    Yp = Yp[:, :max_pitch_bins]
-    Yn = Yn[:, :max_pitch_bins]
+    max_pitch_bins = min(Yo.shape[0], 88)
+    Yo = Yo[:max_pitch_bins,:]
+    Yp = Yp[:max_pitch_bins,:]
+    Yn = Yn[:max_pitch_bins,:]
 
     onsets = Yo > threshold
     pitches = Yp > threshold
     notes = Yn > threshold
-
-
 
     if debug:
         import matplotlib.pyplot as plt
@@ -116,7 +114,7 @@ def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
         threshold=s.threshold,
         audio_duration=duration_sec,
         return_path=True,
-        debug=False
+        debug=True
     )
     return midi
 
