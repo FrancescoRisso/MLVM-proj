@@ -66,6 +66,7 @@ class Settings:
     hidden_size = 10000  # must be even
     encoder_num_layers = 1
     decoder_num_layers = 1
+    notes_messages_loss_multiplier = 1
 
 
 """
