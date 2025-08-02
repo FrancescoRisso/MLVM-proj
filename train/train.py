@@ -36,10 +36,17 @@ from train.utils import (
 from tqdm import tqdm  # import corretto della funzione tqdm
 
 
+import librosa
+import librosa.display
+
+import librosa
+import librosa.display
+import matplotlib.gridspec as gridspec
+
 def save_plot(sample, name, output_dir):
     f1, idx, audio_input, yo_pred, yp_pred, yn_pred, yo_true, yp_true, yn_true = sample
     
-    # Gestione dimensioni tensori
+    # Process tensors (mantenendo lo stesso formato originale)
     yo_pred = yo_pred.squeeze(0).squeeze(0) if len(yo_pred.shape) == 4 else yo_pred.squeeze(0)
     yp_pred = yp_pred.squeeze(0).squeeze(0) if len(yp_pred.shape) == 4 else yp_pred.squeeze(0)
     yn_pred = yn_pred.squeeze(0).squeeze(0) if yn_pred is not None and len(yn_pred.shape) == 4 else yn_pred.squeeze(0) if yn_pred is not None else None
@@ -48,22 +55,46 @@ def save_plot(sample, name, output_dir):
     yp_true = yp_true.squeeze(0).squeeze(0) if len(yp_true.shape) == 4 else yp_true.squeeze(0)
     yn_true = yn_true.squeeze(0).squeeze(0) if yn_true is not None and len(yn_true.shape) == 4 else yn_true.squeeze(0) if yn_true is not None else None
 
-    fig_pred = plot_harmoniccnn_outputs(
-        yo_pred,
-        yp_pred,
-        yn_pred,
-        title_prefix=f"Prediction idx {idx}",
-    )
+    # Estrai audio per CQT
+    audio_np = audio_input.numpy().squeeze()
+    
+    # Calcola CQT (come prima)
+    cqt = librosa.cqt(audio_np, sr=s.sample_rate, hop_length=s.hop_length, n_bins=84, bins_per_octave=12)
+    cqt_mag = librosa.amplitude_to_db(np.abs(cqt), ref=np.max)
+
+    # Crea figura unica con 3 subplots
+    fig = plt.figure(figsize=(15, 10))
+    
+    # 1. Plot CQT (identico all'originale)
+    ax1 = fig.add_subplot(311)
+    img = librosa.display.specshow(cqt_mag, sr=s.sample_rate, hop_length=s.hop_length, 
+                                  x_axis='time', y_axis='cqt_note', ax=ax1)
+    ax1.set_title(f'CQT - {name} sample idx {idx}')
+    fig.colorbar(img, ax=ax1, format='%+2.0f dB')
+
+    # 2. Plot Ground Truth (identico all'originale)
+    ax2 = fig.add_subplot(312)
     fig_gt = plot_harmoniccnn_outputs(
-        yo_true,
-        yp_true,
-        yn_true,
+        torch.Tensor(yo_true),
+        torch.Tensor(yp_true),
+        torch.Tensor(yn_true) if yn_true is not None else None,
         title_prefix=f"Ground Truth idx {idx}",
+        ax=ax2  # Passa l'asse per disegnare nello stesso figura
     )
-    fig_pred.savefig(os.path.join(output_dir, f"{name}_pred_{idx}.png"))
-    fig_gt.savefig(os.path.join(output_dir, f"{name}_gt_{idx}.png"))
-    plt.close(fig_pred)
-    plt.close(fig_gt)
+
+    # 3. Plot Prediction (identico all'originale)
+    ax3 = fig.add_subplot(313)
+    fig_pred = plot_harmoniccnn_outputs(
+        torch.Tensor(yo_pred),
+        torch.Tensor(yp_pred),
+        torch.Tensor(yn_pred) if yn_pred is not None else None,
+        title_prefix=f"Prediction idx {idx}",
+        ax=ax3  # Passa l'asse per disegnare nello stesso figura
+    )
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f"{name}_combined_{idx}.png"), dpi=150)
+    plt.close(fig)
 
 def evaluate_and_plot_extremes(
     model_path: str, dataset: Split, output_dir: str = "eval_plots", top_k: int = 5
@@ -73,8 +104,7 @@ def evaluate_and_plot_extremes(
 
     # Carica modello
     model = (
-        HarmonicCNN().to(device) if s.model == Model.CNN else HarmonicRNN().to(device)
-    )
+        HarmonicCNN().to(device) if s.model == Model.CNN else HarmonicRNN().to(device))
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
 
@@ -85,6 +115,7 @@ def evaluate_and_plot_extremes(
     os.makedirs(output_dir, exist_ok=True)
 
     scores = []
+    skipped_samples = 0
 
     with torch.no_grad():
         for idx, batch in enumerate(tqdm(test_loader, desc="Computing F1 scores")):
@@ -105,7 +136,7 @@ def evaluate_and_plot_extremes(
 
             audio_input = audios.to(device)
 
-            # Predizione - MODIFICATO QUI
+            # Predizione
             outputs = model(audio_input)
             if s.remove_yn:
                 yo_pred = outputs[0]
@@ -115,6 +146,18 @@ def evaluate_and_plot_extremes(
                 yo_pred, yp_pred, yn_pred = outputs
 
             yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
+
+            # Calcola se la ground truth è completamente zero
+            gt_all_zeros = torch.all(yp_true_t == 0).item()
+            
+            # Calcola se la prediction è completamente zero (dopo threshold)
+            pred_thresholded = (yp_pred_sig >= 0.5).float()
+            pred_all_zeros = torch.all(pred_thresholded == 0).item()
+
+            # Se sia GT che prediction sono completamente zero, salta questo sample
+            if gt_all_zeros and pred_all_zeros:
+                skipped_samples += 1
+                continue
 
             # Calcolo metriche (F1 sample-wise)
             metrics = binary_classification_metrics(yp_pred_sig, yp_true_t)
@@ -149,7 +192,9 @@ def evaluate_and_plot_extremes(
         save_plot(sample, "worst", output_dir)
 
     print(f"Saved {top_k} best and {top_k} worst plots to '{output_dir}'")
-
+    print(f"Skipped {skipped_samples} samples where both ground truth and prediction were all zeros")
+    
+    
 def train_one_epoch(
     model: HarmonicCNN | HarmonicRNN,
     dataloader: DataLoader[
@@ -173,7 +218,7 @@ def train_one_epoch(
     # Accumulatore globale per le metriche di YP
     yp_metrics_accumulator = {"TP": 0.0, "FP": 0.0, "FN": 0.0}
 
-    for _, batch in tqdm.tqdm(
+    for _, batch in tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
     ):
         (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch

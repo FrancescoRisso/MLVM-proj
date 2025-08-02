@@ -138,9 +138,12 @@ def imshow_fixed(
 
 
 def plot_harmoniccnn_outputs(
-    yo: torch.Tensor, yp: torch.Tensor, yn: torch.Tensor | None, title_prefix: str
+    yo: torch.Tensor, 
+    yp: torch.Tensor, 
+    yn: torch.Tensor | None, 
+    title_prefix: str,
+    ax=None  # Aggiunto parametro opzionale per l'asse
 ):
-
     yo_np = to_numpy(yo)
     yp_np = to_numpy(yp)
     yn_np = None if s.remove_yn else to_numpy(yn)
@@ -148,22 +151,24 @@ def plot_harmoniccnn_outputs(
     assert yo_np is not None
     assert yp_np is not None
 
-    n_rows = 2 if s.remove_yn else 3
-    fig, axes = plt.subplots(n_rows, 1, figsize=(6, 4 * n_rows))  # type: ignore
+    # Se non viene passato un asse, crea una nuova figura
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 4))
+    else:
+        fig = ax.figure
 
-    axes = np.atleast_1d(axes)
+    n_rows = 2 if s.remove_yn else 3
+    axes = [ax] if n_rows == 1 else [ax] + [ax.twinx() for _ in range(n_rows-1)]
 
     imshow_fixed(axes[0], yo_np, f"YO {title_prefix}", fig)
     imshow_fixed(axes[1], yp_np, f"YP {title_prefix}", fig)
 
-    if not s.remove_yn:
-        assert yn_np is not None
+    if not s.remove_yn and yn_np is not None:
         imshow_fixed(axes[2], yn_np, f"YN {title_prefix}", fig)
 
     for ax in axes:
         ax.axis("off")
 
-    plt.tight_layout()
     return fig
 
 
