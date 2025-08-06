@@ -1,17 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 import pretty_midi
-import matplotlib.pyplot as plt
-import torch
-import librosa
-from dataloader.Song import Song
-from model.model import HarmonicCNN
-from model_rnn.model import HarmonicRNN
-from settings import Model
 from settings import Settings as s
-from dataloader.dataset import DataSet
-from dataloader.split import Split
-from train.utils import plot_fixed_sample
 
 
 def posteriorgrams_to_midi(
@@ -101,6 +91,6 @@ def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     midi = posteriorgrams_to_midi(
         yo_np, yp_np, yn_np,
         audio_duration=duration_sec,
-        debug=True
+        debug=False
     )
     return midi
