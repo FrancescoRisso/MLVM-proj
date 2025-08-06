@@ -17,6 +17,7 @@ from train.utils import (
     soft_continuous_accuracy,
     to_tensor,
 )
+from train.quality_index import evaluate_note_prediction
 
 
 def evaluate(
@@ -110,6 +111,17 @@ def evaluate(
                     label_smoothing=s.label_smoothing,
                     weighted=s.weighted,
                 )
+
+                res = evaluate_note_prediction(
+                    gt_onsets=yo_true_batch_stacked,
+                    gt_pitches=yp_true_batch_stacked,
+                    gt_offsets=yn_true_batch_stacked,
+                    pred_onsets=yo_pred,
+                    pred_pitches=yp_pred,
+                    pred_offsets=yn_pred,
+                )
+
+                print(res)
 
                 running_loss += sum(loss.values())
 
