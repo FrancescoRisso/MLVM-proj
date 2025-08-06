@@ -3,33 +3,26 @@ import numpy.typing as npt
 import pretty_midi
 import matplotlib.pyplot as plt
 import torch
-import torchaudio
+import librosa
+from dataloader.Song import Song
 from model.model import HarmonicCNN
+from model_rnn.model import HarmonicRNN
 from settings import Model
 from settings import Settings as s
 from dataloader.dataset import DataSet
 from dataloader.split import Split
 from train.utils import plot_fixed_sample
 
+
 def posteriorgrams_to_midi(
     Yo: npt.NDArray[np.float32],
     Yp: npt.NDArray[np.float32],
     Yn: npt.NDArray[np.float32],
-    threshold: float = 0.4,
     frame_rate: float | None = None,
     velocity: int = 100,
-    return_path: bool | str = False,
-    output_path: str = "trial_audio/output.mid",
     audio_duration: float | None = None,
     debug: bool = False
 ):
-    # Remove batch dimension if present
-    if Yo.ndim == 3:
-        Yo = Yo[0]
-    if Yp.ndim == 3:
-        Yp = Yp[0]
-    if Yn.ndim == 3:
-        Yn = Yn[0]
 
     # Restrict pitch range to first 88 bins (like piano)
     max_pitch_bins = min(Yo.shape[0], 88)
@@ -37,9 +30,9 @@ def posteriorgrams_to_midi(
     Yp = Yp[:max_pitch_bins,:]
     Yn = Yn[:max_pitch_bins,:]
 
-    onsets = Yo > threshold
-    pitches = Yp > threshold
-    notes = Yn > threshold
+    onsets = Yo > s.threshold
+    pitches = Yp > s.threshold
+    notes = Yn > s.threshold
 
     if debug:
         import matplotlib.pyplot as plt
@@ -72,11 +65,11 @@ def posteriorgrams_to_midi(
     # Main note extraction loop
     for t in range(num_frames):
         for pitch in range(num_pitches):
-            if pitches[pitch, t]:
+            if pitches[pitch, t] and (t == 0 or not pitches[pitch, t - 1]):
                 start_time = t * time_per_frame
                 end_time = start_time + time_per_frame
                 for dt in range(t + 1, num_frames):
-                    if not notes[pitch, dt]:
+                    if not pitches[pitch, dt]:
                         break
                     end_time = (dt + 1) * time_per_frame
                 if end_time - start_time >= min_duration:
@@ -84,7 +77,8 @@ def posteriorgrams_to_midi(
                     if 0 <= midi_pitch <= 127:
                         note_events.append((midi_pitch, start_time, end_time))
 
-    print(f"Detected {len(note_events)} notes")
+    if debug:
+        print(f"Detected {len(note_events)} notes")
 
     # Create MIDI
     midi = pretty_midi.PrettyMIDI()
@@ -99,59 +93,14 @@ def posteriorgrams_to_midi(
         instrument.notes.append(midi_note)
     midi.instruments.append(instrument)
 
-    if return_path:
-        midi.write(output_path)
-        return output_path
-    else:
-        return midi
-
+    return midi
 
 def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     yo_np, yp_np, yn_np = [x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)]
     duration_sec = audio_length / sample_rate
     midi = posteriorgrams_to_midi(
         yo_np, yp_np, yn_np,
-        threshold=s.threshold,
         audio_duration=duration_sec,
-        return_path=True,
         debug=True
     )
     return midi
-
-
-
-def model_eval(
-        model_path: str | None, audio_path: str
-) -> pretty_midi.PrettyMIDI | str:
-    
-    device = s.device
-    print(f"Evaluating on {device}")
-
-    if s.model == Model.RNN:
-        return
-        
-    if model_path is not None:
-        model = HarmonicCNN()
-        model.load_state_dict(torch.load(model_path, map_location=device))
-    else:
-        raise ValueError("No model found insert a valid model")
-    
-    model.eval()
-
-    audio = torchaudio.load(audio_path)[0]  # Load audio file
-    audio = audio.to(device)
-
-    with torch.no_grad():
-        # Assume audio is already preprocessed and ready for model input
-        yo_pred, yp_pred, yn_pred = model(audio)
-        
-        yo_pred = torch.sigmoid(yo_pred)
-        yp_pred = torch.sigmoid(yp_pred)
-        yn_pred = torch.sigmoid(yn_pred) if s.remove_yn == False else yp_pred
-
-        yo_pred = yo_pred.squeeze(1) 
-        yp_pred = yp_pred.squeeze(1)
-        yn_pred = yn_pred.squeeze(1) if s.remove_yn == False else yp_pred
-
-        midi = postprocess(yo_pred, yp_pred, yn_pred, audio_length=audio.shape[-1], sample_rate=s.sample_rate)
-        return midi
