@@ -113,15 +113,17 @@ def evaluate(
                 )
 
                 res = evaluate_note_prediction(
-                    gt_onsets=yo_true_batch_stacked,
-                    gt_pitches=yp_true_batch_stacked,
-                    gt_offsets=yn_true_batch_stacked,
-                    pred_onsets=yo_pred,
-                    pred_pitches=yp_pred,
-                    pred_offsets=yn_pred,
+                    yo_gt=yo_true_batch_stacked,
+                    yp_gt=yp_true_batch_stacked,
+                    yn_gt=yn_true_batch_stacked,
+                    yo_pred=yo_pred,
+                    yp_pred=yp_pred,
+                    yn_pred=yn_pred,
                 )
 
                 print(res)
+
+                exit(-1)
 
                 running_loss += sum(loss.values())
 
