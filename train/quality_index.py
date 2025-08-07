@@ -13,6 +13,22 @@ def evaluate_note_prediction(
     debug: bool = False,
 ) -> dict:
     
+    yo_gt = torch.sigmoid(yo_gt)
+    yp_gt = torch.sigmoid(yp_gt)
+    yn_gt = torch.sigmoid(yn_gt) if s.remove_yn == False else yp_gt
+
+    gt = yo_gt.squeeze(1).squeeze(0)
+    yp_gt = yp_gt.squeeze(1).squeeze(0)
+    gt = yn_gt.squeeze(1).squeeze(0) if s.remove_yn == False else yp_gt
+
+    yo_pred = torch.sigmoid(yo_pred)
+    yp_pred = torch.sigmoid(yp_pred)
+    yn_pred = torch.sigmoid(yn_pred) if s.remove_yn == False else yp_pred
+
+    yo_pred = yo_pred.squeeze(1).squeeze(0) 
+    yp_pred = yp_pred.squeeze(1).squeeze(0)
+    yn_pred = yn_pred.squeeze(1).squeeze(0) if s.remove_yn == False else yp_pred
+
     if yn_gt is None:
         yn_gt = yp_gt
 
