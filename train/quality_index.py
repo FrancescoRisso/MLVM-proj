@@ -5,7 +5,7 @@ from settings import Settings as s
 def check_note_quality(
     notes_tensor: torch.Tensor,
     num_pitches: int,
-    num_frames: int
+    num_frames: int,
 ) -> list:
     
     notes = []
@@ -46,15 +46,8 @@ def evaluate_note_prediction(
     yp_pred = torch.sigmoid(yp_pred).squeeze(1).squeeze(0)
     yn_pred = torch.sigmoid(yn_pred).squeeze(1).squeeze(0) if s.remove_yn == False else yp_pred
 
-    if yn_gt is None:
-        yn_gt = yp_gt
-
-    if yn_pred is None:
-        yn_pred = yp_pred
-
     notes_correct = yn_gt > s.threshold
     notes_predicted = yn_pred > s.threshold
-
     num_pitches, num_frames = yo_gt.shape
 
     # Time resolution (seconds per frame)
