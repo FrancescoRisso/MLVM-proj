@@ -10,6 +10,7 @@ def evaluate_note_prediction(
     yn_pred: torch.Tensor | None,
     onset_tol: float = 0.05,         # seconds (50 ms)
     pitch_tol: float = 0.25,         # in semitones (quarter tone = 0.25) — valid if pitch in MIDI
+    debug: bool = False,
 ) -> dict:
     
     if yn_gt is None:
@@ -18,10 +19,6 @@ def evaluate_note_prediction(
     if yn_pred is None:
         yn_pred = yp_pred
 
-    onsets_correct = yo_gt > s.threshold
-    onsets_predicted = yo_pred > s.threshold
-    pitches_correct = yp_gt > s.threshold
-    pitches_predicted = yp_pred > s.threshold
     notes_correct = yn_gt > s.threshold
     notes_predicted = yn_pred > s.threshold
 
@@ -105,15 +102,20 @@ def evaluate_note_prediction(
 
     false_negatives = len(gt_notes) - sum(matched_gt_flags)
 
-    # Optionally return metrics
+    # Return metrics (Adding a small epsilon to avoid division by zero)
     precision = true_positives / (true_positives + false_positives + 1e-9)
     recall = true_positives / (true_positives + false_negatives + 1e-9)
     f1 = 2 * precision * recall / (precision + recall + 1e-9)
 
+    if debug:
+        print(f"True Positives: {true_positives}")
+        print(f"False Positives: {false_positives}")
+        print(f"False Negatives: {false_negatives}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1 Score: {f1:.4f}")
+
     return {
-        "true_positives": true_positives,
-        "false_positives": false_positives,
-        "false_negatives": false_negatives,
         "precision": precision,
         "recall": recall,
         "f1_score": f1,
