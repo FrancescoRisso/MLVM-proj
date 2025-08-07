@@ -260,7 +260,9 @@ def plot_fixed_sample(
     fig = plot_harmoniccnn_outputs(yo_pred, yp_pred, yn_pred, title_prefix)
 
     # Postprocess to MIDI
-    midi_out = postprocess(yo_pred, yp_pred, yn_pred if yn_pred is not None else yo_pred)
+    midi_out = postprocess(
+        yo_pred, yp_pred, yn_pred if yn_pred is not None else yo_pred
+    )
 
     return fig, midi_out
 

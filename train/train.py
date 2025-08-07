@@ -179,7 +179,6 @@ def train_one_epoch(
     )
 
 
-
 def train():
     seed = random.randrange(sys.maxsize)
     random.seed(seed)
@@ -306,7 +305,7 @@ def train():
             midi = Song.from_np(
                 midis_np.astype(np.uint16), tempos, ticks_per_beats, nums_messages
             ).get_midi()
-            
+
             if s.model == Model.CNN:
                 fig, generated_midi = plot_fixed_sample(model, fixed_sample, device)
 
@@ -327,7 +326,9 @@ def train():
                 run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
                 run_tmp_dir.mkdir(exist_ok=True)
 
-                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False, dir=run_tmp_dir) as midi_tmp:
+                with tempfile.NamedTemporaryFile(
+                    suffix=".mid", delete=False, dir=run_tmp_dir
+                ) as midi_tmp:
                     midi_filename = f"midi_epoch_{epoch+1}.mid"
                     full_path = run_tmp_dir / midi_filename
                     generated_midi.write(full_path)
