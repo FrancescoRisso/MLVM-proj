@@ -48,7 +48,7 @@ class Settings:
     remove_yn = False  # if True, the model will not predict the note matrix
 
     # training settings
-    pre_trained_model_path = "model_saves/harmoniccnn.pth"  # path to a pre-trained model, if any
+    pre_trained_model_path = None  # path to a pre-trained model, if any
     epochs = 10000
     batch_size = 30
     learning_rate = 1e-3

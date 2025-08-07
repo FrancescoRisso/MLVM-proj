@@ -2,7 +2,7 @@ import os
 import random
 import sys
 from datetime import datetime
-
+import mido
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -322,16 +322,29 @@ def train():
                     title_prefix,
                 )
 
-                artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
-                run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
-                run_tmp_dir.mkdir(exist_ok=True)
+                # Creo un file temporaneo per il midi (chiuso subito dopo)
+                with tempfile.NamedTemporaryFile(
+                    suffix=".mid", delete=False
+                ) as tmp_midi_file:
+                    tmp_midi_path = tmp_midi_file.name
 
-                midi_filename = f"midi_epoch_{epoch+1}.mid"
-                full_path = run_tmp_dir / midi_filename
-                generated_midi.write(str(full_path))
+                # Scrivo il midi nel file
+                generated_midi.write(tmp_midi_path)
 
-                artifact.add_file(str(full_path), name=midi_filename)
-                wandb.log_artifact(artifact)
+                # Carico con mido
+                mido_midi = mido.MidiFile(tmp_midi_path)
+                song = Song(mido_midi)
+                wav_data = song.to_wav()
+
+                # Elimino il midi temporaneo
+                os.remove(tmp_midi_path)
+
+                # Creo il file temporaneo per il wav
+                with tempfile.NamedTemporaryFile(
+                    suffix=".wav", delete=False
+                ) as tmp_wav_file:
+                    sf.write(tmp_wav_file.name, wav_data, s.sample_rate)
+                    tmp_wav_path = tmp_wav_file.name
 
                 wandb.log(
                     {
@@ -343,9 +356,12 @@ def train():
                             if epoch == 0 or epoch == 2
                             else None
                         ),
+                        "audio": wandb.Audio(tmp_wav_path),
                     },
                     step=epoch + 1,
                 )
+                # Elimino il wav temporaneo
+                os.remove(tmp_wav_path)
                 plt.close(fig)
                 plt.close(gt_fig)
 
