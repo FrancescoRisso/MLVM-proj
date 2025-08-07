@@ -17,7 +17,6 @@ from train.utils import (
     soft_continuous_accuracy,
     to_tensor,
 )
-from train.quality_index import evaluate_note_prediction
 
 
 def evaluate(

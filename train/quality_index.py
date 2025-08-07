@@ -1,6 +1,31 @@
 import torch
 from settings import Settings as s
 
+
+def check_note_quality(
+    notes_tensor: torch.Tensor,
+    num_pitches: int,
+    num_frames: int
+) -> list:
+    
+    notes = []
+    for pitch in range(num_pitches):
+        active = False
+        onset = 0
+        for t in range(num_frames):
+            if notes_tensor[pitch, t] and not active:
+                onset = t
+                active = True
+            elif not notes_tensor[pitch, t] and active:
+                offset = t
+                active = False
+                notes.append((pitch, onset, offset))
+        if active:
+            notes.append((pitch, onset, num_frames))
+
+    return notes
+
+
 def evaluate_note_prediction(
     yo_gt: torch.Tensor,
     yp_gt: torch.Tensor,
@@ -9,25 +34,17 @@ def evaluate_note_prediction(
     yp_pred: torch.Tensor,
     yn_pred: torch.Tensor | None,
     onset_tol: float = 0.05,         # seconds (50 ms)
-    pitch_tol: float = 0.25,         # in semitones (quarter tone = 0.25) — valid if pitch in MIDI
+    note_tol: float = 0.2,           # 20%        
     debug: bool = False,
 ) -> dict:
     
-    yo_gt = torch.sigmoid(yo_gt)
-    yp_gt = torch.sigmoid(yp_gt)
-    yn_gt = torch.sigmoid(yn_gt) if s.remove_yn == False else yp_gt
+    yo_gt = torch.sigmoid(yo_gt).squeeze(1).squeeze(0)
+    yp_gt = torch.sigmoid(yp_gt).squeeze(1).squeeze(0)
+    yn_gt = torch.sigmoid(yn_gt).squeeze(1).squeeze(0) if s.remove_yn == False else yp_gt
 
-    gt = yo_gt.squeeze(1).squeeze(0)
-    yp_gt = yp_gt.squeeze(1).squeeze(0)
-    gt = yn_gt.squeeze(1).squeeze(0) if s.remove_yn == False else yp_gt
-
-    yo_pred = torch.sigmoid(yo_pred)
-    yp_pred = torch.sigmoid(yp_pred)
-    yn_pred = torch.sigmoid(yn_pred) if s.remove_yn == False else yp_pred
-
-    yo_pred = yo_pred.squeeze(1).squeeze(0) 
-    yp_pred = yp_pred.squeeze(1).squeeze(0)
-    yn_pred = yn_pred.squeeze(1).squeeze(0) if s.remove_yn == False else yp_pred
+    yo_pred = torch.sigmoid(yo_pred).squeeze(1).squeeze(0)
+    yp_pred = torch.sigmoid(yp_pred).squeeze(1).squeeze(0)
+    yn_pred = torch.sigmoid(yn_pred).squeeze(1).squeeze(0) if s.remove_yn == False else yp_pred
 
     if yn_gt is None:
         yn_gt = yp_gt
@@ -44,44 +61,15 @@ def evaluate_note_prediction(
     time_per_frame = s.hop_length / s.sample_rate
     onset_tol_frames = int(onset_tol / time_per_frame)
 
-    matched_gt = torch.zeros_like(yn_gt, dtype=torch.bool)
-    matched_pred = torch.zeros_like(yn_pred, dtype=torch.bool)
-
     true_positives = 0
     false_positives = 0
     false_negatives = 0
 
     # Get predicted notes: (pitch, onset_frame, offset_frame)
-    pred_notes = []
-    for pitch in range(num_pitches):
-        active = False
-        onset = 0
-        for t in range(num_frames):
-            if notes_predicted[pitch, t] and not active:
-                onset = t
-                active = True
-            elif not notes_predicted[pitch, t] and active:
-                offset = t
-                active = False
-                pred_notes.append((pitch, onset, offset))
-        if active:
-            pred_notes.append((pitch, onset, num_frames))
+    pred_notes = check_note_quality(notes_predicted, num_pitches, num_frames)
 
     # Get ground truth notes: (pitch, onset_frame, offset_frame)
-    gt_notes = []
-    for pitch in range(num_pitches):
-        active = False
-        onset = 0
-        for t in range(num_frames):
-            if notes_correct[pitch, t] and not active:
-                onset = t
-                active = True
-            elif not notes_correct[pitch, t] and active:
-                offset = t
-                active = False
-                gt_notes.append((pitch, onset, offset))
-        if active:
-            gt_notes.append((pitch, onset, num_frames))
+    gt_notes = check_note_quality(notes_correct, num_pitches, num_frames)
 
     # Match predicted notes with ground truth notes
     matched_gt_flags = [False] * len(gt_notes)
@@ -97,7 +85,7 @@ def evaluate_note_prediction(
             gt_duration = gt_offset - gt_onset
 
             # Check pitch match
-            if abs(pred_pitch - gt_pitch) > pitch_tol:
+            if pred_pitch != gt_pitch:
                 continue
 
             # Check onset match
@@ -105,7 +93,7 @@ def evaluate_note_prediction(
                 continue
 
             # Check duration match
-            if abs(pred_duration - gt_duration) > 0.2 * gt_duration:
+            if abs(pred_duration - gt_duration) > note_tol * gt_duration:
                 continue
 
             matched = True

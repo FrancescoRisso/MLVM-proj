@@ -16,6 +16,7 @@ def inference(
 ) -> pretty_midi.PrettyMIDI | str:
     
     device = s.device
+    print(f"Evaluating on {device}")
         
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)
     if s.pre_trained_model_path is not None:
