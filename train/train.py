@@ -10,7 +10,6 @@ import torch
 import torch.optim as optim
 from tqdm.auto import tqdm
 import wandb
-import pretty_midi
 import soundfile as sf
 import tempfile
 from pathlib import Path
@@ -37,7 +36,6 @@ from train.utils import (
     to_tensor,
 )
 
-from tqdm import tqdm
 
 
 def train_one_epoch(
@@ -143,7 +141,7 @@ def train_one_epoch(
 
         total_loss.backward()
         optimizer.step()
-        cur_loss = total_loss.item()
+        cur_loss = total_loss.item() # type: ignore
         assert isinstance(cur_loss, float)
         running_loss += cur_loss
 
@@ -322,29 +320,15 @@ def train():
                     title_prefix,
                 )
 
-                # Creo un file temporaneo per il midi (chiuso subito dopo)
-                with tempfile.NamedTemporaryFile(
-                    suffix=".mid", delete=False
-                ) as tmp_midi_file:
+                # Creo un file temporaneo per il midi
+                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp_midi_file:
                     tmp_midi_path = tmp_midi_file.name
-
                 # Scrivo il midi nel file
                 generated_midi.write(tmp_midi_path)
-
-                # Carico con mido
-                mido_midi = mido.MidiFile(tmp_midi_path)
-                song = Song(mido_midi)
-                wav_data = song.to_wav()
-
+                # Converto il midi in audio
+                wav_data = Song.from_path(tmp_midi_path).to_wav()
                 # Elimino il midi temporaneo
                 os.remove(tmp_midi_path)
-
-                # Creo il file temporaneo per il wav
-                with tempfile.NamedTemporaryFile(
-                    suffix=".wav", delete=False
-                ) as tmp_wav_file:
-                    sf.write(tmp_wav_file.name, wav_data, s.sample_rate)
-                    tmp_wav_path = tmp_wav_file.name
 
                 # Log midi to wandb
                 artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
@@ -365,14 +349,13 @@ def train():
                             if epoch == 0 or epoch == 2
                             else None
                         ),
-                        "audio": wandb.Audio(tmp_wav_path),
+                        "audio": wandb.Audio(wav_data, sample_rate=s.sample_rate)
                     },
                     step=epoch + 1,
                 )
                 wandb.log_artifact(artifact)
 
                 # Elimino il wav temporaneo
-                os.remove(tmp_wav_path)
                 plt.close(fig)
                 plt.close(gt_fig)
 

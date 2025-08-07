@@ -1,11 +1,11 @@
 from typing import Any
 
 import matplotlib.pyplot as plt
-import mido
+import mido # type: ignore
 import numpy as np
 import numpy.typing as npt
 import torch
-from matplotlib.axes import _axes
+from matplotlib.axes import _axes # type: ignore
 from matplotlib.figure import Figure
 
 import librosa
@@ -42,25 +42,25 @@ def midi_to_label_matrices(
         assert isinstance(msg.time, int)
         tick_accumulator += msg.time
 
-        if msg.type == "set_tempo":
-            assert isinstance(msg.tempo, int)
-            current_tempo = msg.tempo
+        if msg.type == "set_tempo": # type: ignore
+            assert isinstance(msg.tempo, int) # type: ignore
+            current_tempo = msg.tempo # type: ignore
 
-        time_in_seconds = mido.tick2second(
+        time_in_seconds = mido.tick2second( # type: ignore
             tick_accumulator, ticks_per_beat, current_tempo
         )
         assert isinstance(time_in_seconds, torch.Tensor) or isinstance(
             time_in_seconds, float
         )
 
-        if msg.type == "note_on" and msg.velocity > 0:
-            active_notes[msg.note] = time_in_seconds
+        if msg.type == "note_on" and msg.velocity > 0: # type: ignore
+            active_notes[msg.note] = time_in_seconds # type: ignore
 
-        elif (msg.type == "note_off") or (msg.type == "note_on" and msg.velocity == 0):
-            start = active_notes.pop(msg.note, None)
-            if start is not None and (min_pitch <= msg.note) and (msg.note < max_pitch):
-                assert isinstance(msg.note, int)
-                notes.append((msg.note, start, time_in_seconds))
+        elif (msg.type == "note_off") or (msg.type == "note_on" and msg.velocity == 0): # type: ignore
+            start = active_notes.pop(msg.note, None) # type: ignore
+            if start is not None and (min_pitch <= msg.note) and (msg.note < max_pitch): # type: ignore
+                assert isinstance(msg.note, int) # type: ignore
+                notes.append((msg.note, start, time_in_seconds)) # type: ignore
 
     # Determina la durata massima per dimensionare le matrici
     max_time = s.seconds
@@ -88,7 +88,7 @@ def to_numpy(
 ) -> npt.NDArray[np.generic] | None:
     if tensor is None:
         return None
-    return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor
+    return tensor.detach().cpu().numpy() if isinstance(tensor, torch.Tensor) else tensor # type: ignore
 
 
 def soft_continuous_accuracy(y_pred: torch.Tensor, y_true: torch.Tensor) -> float:
@@ -227,7 +227,7 @@ def should_log_image(epoch: int) -> bool:
         return epoch % 5 == 0
 
 
-@torch.no_grad()
+@torch.no_grad() # type: ignore
 def plot_fixed_sample(
     model: torch.nn.Module,
     sample: tuple[
@@ -237,7 +237,7 @@ def plot_fixed_sample(
     device: torch.device,
 ):
     (midi_np, tempo, ticks_per_beat, num_messages), audio = sample
-    audio = torch.from_numpy(audio) if isinstance(audio, np.ndarray) else audio
+    audio = torch.from_numpy(audio) if isinstance(audio, np.ndarray) else audio # type: ignore
     audio = audio.unsqueeze(0).to(device)
 
     midi = Song.from_np(midi_np, tempo, ticks_per_beat, num_messages).get_midi()
