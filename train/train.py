@@ -10,8 +10,12 @@ import torch
 import torch.optim as optim
 from tqdm.auto import tqdm
 import wandb
-from torch.utils.data import DataLoader
+import pretty_midi
+import soundfile as sf
+import tempfile
+from pathlib import Path
 
+from torch.utils.data import DataLoader
 from dataloader.dataset import DataSet
 from dataloader.Song import Song
 from dataloader.split import Split
@@ -22,6 +26,7 @@ from settings import Settings as s
 from train.evaluate import evaluate
 from train.losses import harmoniccnn_loss
 from train.rnn_losses import np_midi_loss
+from model.postprocessing import postprocess
 from train.utils import (
     binary_classification_metrics,
     midi_to_label_matrices,
@@ -174,6 +179,7 @@ def train_one_epoch(
     )
 
 
+
 def train():
     seed = random.randrange(sys.maxsize)
     random.seed(seed)
@@ -300,9 +306,9 @@ def train():
             midi = Song.from_np(
                 midis_np.astype(np.uint16), tempos, ticks_per_beats, nums_messages
             ).get_midi()
-
+            
             if s.model == Model.CNN:
-                fig = plot_fixed_sample(model, fixed_sample, device)
+                fig, generated_midi = plot_fixed_sample(model, fixed_sample, device)
 
                 yo_true, yp_true = midi_to_label_matrices(
                     midi, s.sample_rate, s.hop_length, n_bins=88
@@ -317,7 +323,18 @@ def train():
                     title_prefix,
                 )
 
-                # Log both
+                artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
+                run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
+                run_tmp_dir.mkdir(exist_ok=True)
+
+                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False, dir=run_tmp_dir) as midi_tmp:
+                    midi_filename = f"midi_epoch_{epoch+1}.mid"
+                    full_path = run_tmp_dir / midi_filename
+                    generated_midi.write(full_path)
+
+                    artifact.add_file(str(full_path), name=midi_filename)
+                    wandb.log_artifact(artifact)
+
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(
@@ -354,6 +371,7 @@ def train():
                     step=epoch + 1,
                 )
 
+        # Early stopping
         if not s.single_element_training:
             if avg_val_loss < best_val_loss - 1e-4:
                 best_val_loss = avg_val_loss

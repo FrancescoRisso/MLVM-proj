@@ -18,7 +18,7 @@ from dataloader.dataset import DataSet
 from dataloader.Song import Song
 from dataloader.split import Split
 from model.model import HarmonicCNN
-
+from model.postprocessing import postprocess
 from settings import Settings as s
 
 
@@ -257,10 +257,12 @@ def plot_fixed_sample(
     yn_pred = torch.sigmoid(yn_pred).squeeze(1).cpu() if not s.remove_yn else None
 
     title_prefix = "Prediction"
-
     fig = plot_harmoniccnn_outputs(yo_pred, yp_pred, yn_pred, title_prefix)
 
-    return fig
+    # Postprocess to MIDI
+    midi_out = postprocess(yo_pred, yp_pred, yn_pred if yn_pred is not None else yo_pred)
+
+    return fig, midi_out
 
 
 def save_plot(sample, name, output_dir):
