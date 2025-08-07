@@ -28,7 +28,7 @@ def evaluate_note_prediction(
     num_pitches, num_frames = yo_gt.shape
 
     # Time resolution (seconds per frame)
-    time_per_frame = s.hop_length / s.sr
+    time_per_frame = s.hop_length / s.sample_rate
     onset_tol_frames = int(onset_tol / time_per_frame)
 
     matched_gt = torch.zeros_like(yn_gt, dtype=torch.bool)

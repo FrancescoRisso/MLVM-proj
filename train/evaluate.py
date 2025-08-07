@@ -112,19 +112,6 @@ def evaluate(
                     weighted=s.weighted,
                 )
 
-                res = evaluate_note_prediction(
-                    yo_gt=yo_true_batch_stacked,
-                    yp_gt=yp_true_batch_stacked,
-                    yn_gt=yn_true_batch_stacked,
-                    yo_pred=yo_pred,
-                    yp_pred=yp_pred,
-                    yn_pred=yn_pred,
-                )
-
-                print(res)
-
-                exit(-1)
-
                 running_loss += sum(loss.values())
 
             else:  # RNN TODO
