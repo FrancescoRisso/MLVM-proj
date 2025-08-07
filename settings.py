@@ -45,13 +45,13 @@ class Settings:
     harmonic_shifts = [-12, 0, 12]
     device = torch.device("cpu")
     model: Model = Model.CNN
-    remove_yn = True  # if True, the model will not predict the note matrix
+    remove_yn = False  # if True, the model will not predict the note matrix
 
     # training settings
-    pre_trained_model_path = None  # path to a pre-trained model, if any
-    epochs = 100000
+    pre_trained_model_path = "model_saves/harmoniccnn.pth"  # path to a pre-trained model, if any
+    epochs = 10000
     batch_size = 30
-    learning_rate = 1e-4
+    learning_rate = 1e-3
     label_smoothing = 0.0
     weighted = True
     positive_weight_yp = 0.55
@@ -60,10 +60,13 @@ class Settings:
     save_model = True
 
     # if True, the model will be trained on a single element
-    single_element_training = True
+    single_element_training = False
+
+    # postprocessing settings
+    threshold = 0.6  # threshold for postprocessing
 
     # RNN settings
-    hidden_size = 10000  # must be even
+    hidden_size = 100000  # must be even
     encoder_num_layers = 1
     decoder_num_layers = 1
     notes_messages_loss_multiplier = 1
