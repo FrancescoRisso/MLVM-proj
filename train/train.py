@@ -346,6 +346,15 @@ def train():
                     sf.write(tmp_wav_file.name, wav_data, s.sample_rate)
                     tmp_wav_path = tmp_wav_file.name
 
+                # Log midi to wandb
+                artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
+                run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
+                run_tmp_dir.mkdir(exist_ok=True)
+                midi_filename = f"midi_epoch_{epoch+1}.mid"
+                full_path = run_tmp_dir / midi_filename
+                generated_midi.write(str(full_path))
+                artifact.add_file(str(full_path), name=midi_filename)
+
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(
@@ -360,6 +369,8 @@ def train():
                     },
                     step=epoch + 1,
                 )
+                wandb.log_artifact(artifact)
+
                 # Elimino il wav temporaneo
                 os.remove(tmp_wav_path)
                 plt.close(fig)
