@@ -326,15 +326,12 @@ def train():
                 run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
                 run_tmp_dir.mkdir(exist_ok=True)
 
-                with tempfile.NamedTemporaryFile(
-                    suffix=".mid", delete=False, dir=run_tmp_dir
-                ) as midi_tmp:
-                    midi_filename = f"midi_epoch_{epoch+1}.mid"
-                    full_path = run_tmp_dir / midi_filename
-                    generated_midi.write(full_path)
+                midi_filename = f"midi_epoch_{epoch+1}.mid"
+                full_path = run_tmp_dir / midi_filename
+                generated_midi.write(str(full_path))
 
-                    artifact.add_file(str(full_path), name=midi_filename)
-                    wandb.log_artifact(artifact)
+                artifact.add_file(str(full_path), name=midi_filename)
+                wandb.log_artifact(artifact)
 
                 wandb.log(
                     {

@@ -88,9 +88,11 @@ def posteriorgrams_to_midi(
 def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     yo_np, yp_np, yn_np = [x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)]
     duration_sec = audio_length / sample_rate
+    frame_rate = sample_rate / s.hop_length
     midi = posteriorgrams_to_midi(
         yo_np, yp_np, yn_np,
         audio_duration=duration_sec,
+        frame_rate=frame_rate,
         debug=False
     )
     return midi

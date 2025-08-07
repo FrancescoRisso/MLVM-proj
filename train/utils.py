@@ -261,7 +261,7 @@ def plot_fixed_sample(
 
     # Postprocess to MIDI
     midi_out = postprocess(
-        yo_pred, yp_pred, yn_pred if yn_pred is not None else yo_pred
+        yo_pred, yp_pred, yn_pred if yn_pred is not None else yp_pred, s.seconds, s.sample_rate
     )
 
     return fig, midi_out

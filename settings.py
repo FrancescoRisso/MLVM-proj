@@ -60,7 +60,7 @@ class Settings:
     save_model = True
 
     # if True, the model will be trained on a single element
-    single_element_training = False
+    single_element_training = True
 
     # postprocessing settings
     threshold = 0.6  # threshold for postprocessing
