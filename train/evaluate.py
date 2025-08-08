@@ -125,12 +125,7 @@ def evaluate(
                 pred_midi, pred_len, pred_tpb = model(audios)
 
                 running_loss += np_midi_loss(
-                    pred_midi,
-                    pred_len,
-                    pred_tpb,
-                    midis_np,
-                    nums_messages,
-                    ticks_per_beats,
+                    pred_midi, pred_len, pred_tpb, midis_np, nums_messages, ticks_per_beats
                 )
 
     avg_loss = running_loss / total_batches

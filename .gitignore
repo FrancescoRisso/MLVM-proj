@@ -185,11 +185,6 @@ model_saves/
 
 # wandb
 wandb/
-artifacts/
 
 # trial folder
 trial_audio/
-
-# eval plots
-eval_plots/
-
