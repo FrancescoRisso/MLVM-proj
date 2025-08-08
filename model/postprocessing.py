@@ -11,14 +11,14 @@ def posteriorgrams_to_midi(
     frame_rate: float | None = None,
     velocity: int = 100,
     audio_duration: float | None = None,
-    debug: bool = False
+    debug: bool = False,
 ):
 
     # Restrict pitch range to first 88 bins (like piano)
     max_pitch_bins = min(Yo.shape[0], 88)
-    Yo = Yo[:max_pitch_bins,:]
-    Yp = Yp[:max_pitch_bins,:]
-    Yn = Yn[:max_pitch_bins,:]
+    Yo = Yo[:max_pitch_bins, :]
+    Yp = Yp[:max_pitch_bins, :]
+    Yn = Yn[:max_pitch_bins, :]
 
     onsets = Yo > s.threshold
     pitches = Yp > s.threshold
@@ -34,7 +34,7 @@ def posteriorgrams_to_midi(
         print("Pitch activations:", np.sum(pitches))
         print("Note activations:", np.sum(notes))
 
-        plt.imshow(Yp, aspect='auto', origin='lower', cmap='hot')
+        plt.imshow(Yp, aspect="auto", origin="lower", cmap="hot")
         plt.title("Pitch Posteriorgram (Yp)")
         plt.xlabel("Frame Index")
         plt.ylabel("Pitch Index")
@@ -75,22 +75,24 @@ def posteriorgrams_to_midi(
     instrument = pretty_midi.Instrument(program=0)
     for pitch, start, end in note_events:
         midi_note = pretty_midi.Note(
-            velocity=min(int(velocity), 127),
-            pitch=int(pitch),
-            start=start,
-            end=end
+            velocity=min(int(velocity), 127), pitch=int(pitch), start=start, end=end
         )
         instrument.notes.append(midi_note)
     midi.instruments.append(instrument)
 
     return midi
 
+
 def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
     yo_np, yp_np, yn_np = [x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)]
     duration_sec = audio_length / sample_rate
+    frame_rate = sample_rate / s.hop_length
     midi = posteriorgrams_to_midi(
-        yo_np, yp_np, yn_np,
+        yo_np,
+        yp_np,
+        yn_np,
         audio_duration=duration_sec,
-        debug=False
+        frame_rate=frame_rate,
+        debug=False,
     )
     return midi

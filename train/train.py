@@ -2,16 +2,19 @@ import os
 import random
 import sys
 from datetime import datetime
-
+import mido
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
 import torch.optim as optim
-import tqdm
+from tqdm.auto import tqdm
 import wandb
-from torch.utils.data import DataLoader
+import soundfile as sf
+import tempfile
+from pathlib import Path
 
+from torch.utils.data import DataLoader
 from dataloader.dataset import DataSet
 from dataloader.Song import Song
 from dataloader.split import Split
@@ -22,6 +25,7 @@ from settings import Settings as s
 from train.evaluate import evaluate
 from train.losses import harmoniccnn_loss
 from train.rnn_losses import np_midi_loss
+from model.postprocessing import postprocess
 from train.utils import (
     binary_classification_metrics,
     midi_to_label_matrices,
@@ -31,6 +35,7 @@ from train.utils import (
     soft_continuous_accuracy,
     to_tensor,
 )
+
 
 
 def train_one_epoch(
@@ -56,7 +61,7 @@ def train_one_epoch(
     # Accumulatore globale per le metriche di YP
     yp_metrics_accumulator = {"TP": 0.0, "FP": 0.0, "FN": 0.0}
 
-    for _, batch in tqdm.tqdm(
+    for _, batch in tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
     ):
         (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
@@ -134,9 +139,9 @@ def train_one_epoch(
                 pred_midi, pred_len, pred_tpb, midis_np, nums_messages, ticks_per_beats
             )
 
-        total_loss.backward()  # type: ignore
+        total_loss.backward()
         optimizer.step()
-        cur_loss = total_loss.item()  # type: ignore
+        cur_loss = total_loss.item() # type: ignore
         assert isinstance(cur_loss, float)
         running_loss += cur_loss
 
@@ -190,7 +195,7 @@ def train():
     )
 
     wandb.init(
-        project="MLVM-Project",
+        project="MLVM",
         name=project_name,
         config={
             "epochs": s.epochs,
@@ -300,7 +305,7 @@ def train():
             ).get_midi()
 
             if s.model == Model.CNN:
-                fig = plot_fixed_sample(model, fixed_sample, device)
+                fig, generated_midi = plot_fixed_sample(model, fixed_sample, device)
 
                 yo_true, yp_true = midi_to_label_matrices(
                     midi, s.sample_rate, s.hop_length, n_bins=88
@@ -315,7 +320,25 @@ def train():
                     title_prefix,
                 )
 
-                # Log both
+                # Creo un file temporaneo per il midi
+                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp_midi_file:
+                    tmp_midi_path = tmp_midi_file.name
+                # Scrivo il midi nel file
+                generated_midi.write(tmp_midi_path)
+                # Converto il midi in audio
+                wav_data = Song.from_path(tmp_midi_path).to_wav()
+                # Elimino il midi temporaneo
+                os.remove(tmp_midi_path)
+
+                # Log midi to wandb
+                artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
+                run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
+                run_tmp_dir.mkdir(exist_ok=True)
+                midi_filename = f"midi_epoch_{epoch+1}.mid"
+                full_path = run_tmp_dir / midi_filename
+                generated_midi.write(str(full_path))
+                artifact.add_file(str(full_path), name=midi_filename)
+
                 wandb.log(
                     {
                         "prediction_vs_gt": wandb.Image(
@@ -326,9 +349,13 @@ def train():
                             if epoch == 0 or epoch == 2
                             else None
                         ),
+                        "audio": wandb.Audio(wav_data, sample_rate=s.sample_rate)
                     },
                     step=epoch + 1,
                 )
+                wandb.log_artifact(artifact)
+
+                # Elimino il wav temporaneo
                 plt.close(fig)
                 plt.close(gt_fig)
 
@@ -352,6 +379,7 @@ def train():
                     step=epoch + 1,
                 )
 
+        # Early stopping
         if not s.single_element_training:
             if avg_val_loss < best_val_loss - 1e-4:
                 best_val_loss = avg_val_loss
