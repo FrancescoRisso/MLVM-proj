@@ -215,17 +215,6 @@ def train():
                 title_prefix,
             )
 
-            # # Creo un file temporaneo per il midi
-            # with tempfile.NamedTemporaryFile(
-            #     suffix=".mid", delete=False
-            # ) as tmp_midi_file:
-            #     tmp_midi_path = tmp_midi_file.name
-            # # Scrivo il midi nel file
-            # out.midi.write(tmp_midi_path)  # type: ignore
-            # # Converto il midi in audio
-            # # Elimino il midi temporaneo
-            # os.remove(tmp_midi_path)
-
             # Log midi to wandb
             artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")  # type: ignore
             run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name  # type: ignore
@@ -258,7 +247,7 @@ def train():
             )
             wandb.log_artifact(artifact)
 
-            # Elimino il wav temporaneo
+            # Elimino il wav temporaneo (? Lo stiamo facendo?)
             plt.close(fig)  # type: ignore
             plt.close(gt_fig)
 
