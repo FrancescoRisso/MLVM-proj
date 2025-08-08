@@ -1,41 +1,36 @@
 import os
 import random
 import sys
+import tempfile
 from datetime import datetime
-import mido
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
 import torch.optim as optim
-from tqdm.auto import tqdm
-import wandb
-import soundfile as sf
-import tempfile
-from pathlib import Path
-
+from pretty_midi import PrettyMIDI  # type: ignore
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
+
+import wandb
 from dataloader.dataset import DataSet
 from dataloader.Song import Song
 from dataloader.split import Split
+from model.HarmonicNet import Statistics
 from model.model import HarmonicCNN
 from model_rnn.model import HarmonicRNN
 from settings import Model
 from settings import Settings as s
 from train.evaluate import evaluate
-from train.losses import harmoniccnn_loss
-from train.rnn_losses import np_midi_loss
-from model.postprocessing import postprocess
 from train.utils import (
-    binary_classification_metrics,
     midi_to_label_matrices,
     plot_fixed_sample,
     plot_harmoniccnn_outputs,
     should_log_image,
-    soft_continuous_accuracy,
-    to_tensor,
+    to_numpy,
 )
-
 
 
 def train_one_epoch(
@@ -55,93 +50,23 @@ def train_one_epoch(
     model.train()
 
     running_loss = 0.0
-    total_accuracy = 0.0
     total_batches = len(dataloader)
 
-    # Accumulatore globale per le metriche di YP
-    yp_metrics_accumulator = {"TP": 0.0, "FP": 0.0, "FN": 0.0}
+    stats = Statistics(0, 0, 0)
 
     for _, batch in tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
     ):
-        (midis_np, tempos, ticks_per_beats, nums_messages), audios = batch
         optimizer.zero_grad()
 
-        if s.model == Model.CNN:
+        model.set_input(batch, device)
+        model.exec_forward()
+        total_loss = model.get_loss()
+        stats += model.get_batch_statistics()
 
-            yo_true_batch: list[torch.Tensor] = []
-            yn_true_batch: list[torch.Tensor] = []
-            yp_true_batch: list[torch.Tensor] = []
-
-            audio_input_batch: list[torch.Tensor] = []
-
-            for i in range(midis_np.shape[0]):
-                midi = Song.from_np(
-                    midis_np[i], tempos[i], ticks_per_beats[i], nums_messages[i]
-                ).get_midi()
-                yo, yp = midi_to_label_matrices(
-                    midi, s.sample_rate, s.hop_length, n_bins=88
-                )
-                yn = yp
-
-                yo_true_batch.append(to_tensor(yo).to(device))
-                yp_true_batch.append(to_tensor(yp).to(device))
-                if not s.remove_yn:
-                    yn_true_batch.append(to_tensor(yn).to(device))
-                audio_input_batch.append(audios[i].to(device))
-
-            yo_true_batch_stacked = torch.stack(yo_true_batch)
-            yp_true_batch_stacked = torch.stack(yp_true_batch)
-
-            if s.remove_yn:
-                yn_true_batch_stacked = None
-            else:
-                yn_true_batch_stacked = torch.stack(yn_true_batch)
-
-            audio_input_batch_stacked = torch.stack(audio_input_batch)
-
-            (yo_pred, yp_pred, yn_pred) = model(audio_input_batch_stacked)
-
-            yp_pred_sig = torch.sigmoid(yp_pred).squeeze(1)
-
-            yo_pred = yo_pred.squeeze(1)
-            yp_pred = yp_pred.squeeze(1)
-            if not s.remove_yn:
-                yn_pred = yn_pred.squeeze(1)
-
-            batch_metrics = binary_classification_metrics(
-                yp_pred_sig, yp_true_batch_stacked
-            )
-            for key in ["TP", "FP", "FN"]:
-                yp_metrics_accumulator[key] += batch_metrics[key]
-
-            accuracy = soft_continuous_accuracy(yp_pred_sig, yp_true_batch_stacked)
-            total_accuracy += accuracy
-
-            loss = harmoniccnn_loss(
-                yo_pred,
-                yp_pred,
-                yo_true_batch_stacked,
-                yp_true_batch_stacked,
-                yn_pred,
-                yn_true_batch_stacked,
-                label_smoothing=s.label_smoothing,
-                weighted=s.weighted,
-            )
-
-            total_loss = sum(loss.values())
-
-        else:  # RNN
-            assert isinstance(model, HarmonicRNN)
-            audios = audios.reshape((audios.shape[0], -1, s.sample_rate))
-            pred_midi, pred_len, pred_tpb = model(audios)
-            total_loss = np_midi_loss(
-                pred_midi, pred_len, pred_tpb, midis_np, nums_messages, ticks_per_beats
-            )
-
-        total_loss.backward()
+        total_loss.backward()  # type: ignore
         optimizer.step()
-        cur_loss = total_loss.item() # type: ignore
+        cur_loss = total_loss.item()  # type: ignore
         assert isinstance(cur_loss, float)
         running_loss += cur_loss
 
@@ -154,27 +79,11 @@ def train_one_epoch(
         torch.save(model.state_dict(), path)
         print(f"Model saved as '{path}'")
 
-    if s.model == Model.RNN:
-        return running_loss / total_batches, {}
-
-    # Calcolo metriche globali per CNN
-    tp = yp_metrics_accumulator["TP"]
-    fp = yp_metrics_accumulator["FP"]
-    fn = yp_metrics_accumulator["FN"]
-    precision = tp / (tp + fp + 1e-8)
-    recall = tp / (tp + fn + 1e-8)
-    f1 = 2 * precision * recall / (precision + recall + 1e-8)
-    average_soft_accuracy = total_accuracy / total_batches
-
-    return (
-        running_loss / total_batches,
-        {
-            "yp_accuracy": average_soft_accuracy,
-            "yp_precision": precision,
-            "yp_recall": recall,
-            "yp_f1": f1,
-        },
-    )
+    return running_loss / total_batches, {
+        "f1": stats.f1,
+        "precision": stats.precision,
+        "recall": stats.recall,
+    }
 
 
 def train():
@@ -249,137 +158,110 @@ def train():
             avg_val_loss, val_metrics = evaluate(model_path, Split.VALIDATION)
             print(f"[Epoch {epoch+1}/{s.epochs}] Validation Loss: {avg_val_loss:.4f}")
 
-        if s.model == Model.CNN:
-            if s.single_element_training:
-                wandb.log(
-                    {
-                        "loss/train": avg_train_loss,
-                        "metrics_TRAIN/average accuracy/train_yp": train_metrics[
-                            "yp_accuracy"
-                        ],
-                        "metrics_TRAIN/precision/train_yp": train_metrics[
-                            "yp_precision"
-                        ],
-                        "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
-                        "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
-                    }
-                )
-            else:
-                wandb.log(
-                    {
-                        "loss/train": avg_train_loss,
-                        "loss/val": avg_val_loss,
-                        "metrics_TRAIN/average accuracy/train_yp": train_metrics[
-                            "yp_accuracy"
-                        ],
-                        "metrics_TRAIN/precision/train_yp": train_metrics[
-                            "yp_precision"
-                        ],
-                        "metrics_TRAIN/recall/train_yp": train_metrics["yp_recall"],
-                        "metrics_TRAIN/f1/train_yp": train_metrics["yp_f1"],
-                        "metrics_VAL/average accuracy/train_yp": val_metrics[
-                            "yp_accuracy"
-                        ],
-                        "metrics_VAL/precision/train_yp": val_metrics["yp_precision"],
-                        "metrics_VAL/recall/train_yp": val_metrics["yp_recall"],
-                        "metrics_VAL/f1/train_yp": val_metrics["yp_f1"],
-                    },
-                    step=epoch + 1,
-                )
-
-        else:  # RNN
+        if s.single_element_training:
+            wandb.log(
+                {
+                    "loss/train": avg_train_loss,
+                    "metrics_TRAIN/precision/train_yp": train_metrics["precision"],
+                    "metrics_TRAIN/recall/train_yp": train_metrics["recall"],
+                    "metrics_TRAIN/f1/train_yp": train_metrics["f1"],
+                }
+            )
+        else:
             wandb.log(
                 {
                     "loss/train": avg_train_loss,
                     "loss/val": avg_val_loss,
-                }
+                    "metrics_TRAIN/precision/train_yp": train_metrics["precision"],
+                    "metrics_TRAIN/recall/train_yp": train_metrics["recall"],
+                    "metrics_TRAIN/f1/train_yp": train_metrics["f1"],
+                    "metrics_VAL/precision/train_yp": val_metrics["precision"],
+                    "metrics_VAL/recall/train_yp": val_metrics["recall"],
+                    "metrics_VAL/f1/train_yp": val_metrics["f1"],
+                },
+                step=epoch + 1,
             )
 
         if should_log_image(epoch):
             d = DataSet(Split.SINGLE_AUDIO, s.seconds)
-            fixed_sample = d[0]
 
-            (midis_np, tempos, ticks_per_beats, nums_messages), audio = fixed_sample
+            fixed_batch = DataLoader(d).__iter__().__next__()
+            fixed_sample = (
+                tuple([val[0] for val in fixed_batch[0]]),
+                fixed_batch[1][0],
+            )
+
+            model.set_input(fixed_batch, device)
+            model.exec_forward()
+            out = model.get_network_output()[0]
+
+            (midis_np, tempos, ticks_per_beats, nums_messages), _ = fixed_sample
             midi = Song.from_np(
-                midis_np.astype(np.uint16), tempos, ticks_per_beats, nums_messages
+                to_numpy(midis_np).astype(np.uint16), tempos, ticks_per_beats, nums_messages  # type: ignore
             ).get_midi()
 
-            if s.model == Model.CNN:
-                fig, generated_midi = plot_fixed_sample(model, fixed_sample, device)
+            fig = plot_fixed_sample(fixed_sample, device, out.yo, out.yp, out.yn)[0]
 
-                yo_true, yp_true = midi_to_label_matrices(
-                    midi, s.sample_rate, s.hop_length, n_bins=88
-                )
-                yn_true = yp_true
+            yo_true, yp_true = midi_to_label_matrices(
+                midi, s.sample_rate, s.hop_length, n_bins=88
+            )
+            yn_true = yp_true
 
-                title_prefix = "Ground Truth"
-                gt_fig = plot_harmoniccnn_outputs(
-                    torch.Tensor(yo_true),
-                    torch.Tensor(yp_true),
-                    torch.Tensor(yn_true),
-                    title_prefix,
-                )
+            title_prefix = "Ground Truth"
+            gt_fig = plot_harmoniccnn_outputs(
+                torch.Tensor(yo_true),
+                torch.Tensor(yp_true),
+                torch.Tensor(yn_true),
+                title_prefix,
+            )
 
-                # Creo un file temporaneo per il midi
-                with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as tmp_midi_file:
-                    tmp_midi_path = tmp_midi_file.name
-                # Scrivo il midi nel file
-                generated_midi.write(tmp_midi_path)
-                # Converto il midi in audio
-                wav_data = Song.from_path(tmp_midi_path).to_wav()
-                # Elimino il midi temporaneo
-                os.remove(tmp_midi_path)
+            # # Creo un file temporaneo per il midi
+            # with tempfile.NamedTemporaryFile(
+            #     suffix=".mid", delete=False
+            # ) as tmp_midi_file:
+            #     tmp_midi_path = tmp_midi_file.name
+            # # Scrivo il midi nel file
+            # out.midi.write(tmp_midi_path)  # type: ignore
+            # # Converto il midi in audio
+            # # Elimino il midi temporaneo
+            # os.remove(tmp_midi_path)
 
-                # Log midi to wandb
-                artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")
-                run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name
-                run_tmp_dir.mkdir(exist_ok=True)
-                midi_filename = f"midi_epoch_{epoch+1}.mid"
-                full_path = run_tmp_dir / midi_filename
-                generated_midi.write(str(full_path))
-                artifact.add_file(str(full_path), name=midi_filename)
+            # Log midi to wandb
+            artifact = wandb.Artifact(f"{wandb.run.name}_midi", type="midi")  # type: ignore
+            run_tmp_dir = Path(tempfile.gettempdir()) / wandb.run.name  # type: ignore
+            run_tmp_dir.mkdir(exist_ok=True)  # type: ignore
+            midi_filename = f"midi_epoch_{epoch+1}.mid"
+            full_path = run_tmp_dir / midi_filename  # type: ignore
 
-                wandb.log(
-                    {
-                        "prediction_vs_gt": wandb.Image(
-                            fig, caption=f"Prediction Epoch {epoch+1}"
-                        ),
-                        "ground_truth": (
-                            wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}")
-                            if epoch == 0 or epoch == 2
-                            else None
-                        ),
-                        "audio": wandb.Audio(wav_data, sample_rate=s.sample_rate)
-                    },
-                    step=epoch + 1,
-                )
-                wandb.log_artifact(artifact)
+            if isinstance(out.midi, PrettyMIDI):
+                out.midi.write(str(full_path))  # type: ignore
+            else:
+                out.midi.save(str(full_path))  # type: ignore
 
-                # Elimino il wav temporaneo
-                plt.close(fig)
-                plt.close(gt_fig)
+            artifact.add_file(str(full_path), name=midi_filename)  # type: ignore
 
-            else:  # RNN
-                audio_input = audio.reshape((1, -1, s.sample_rate))
-                pred_midi, pred_len, pred_tpb = model(torch.Tensor(audio_input))
-                out = Song.from_np(
-                    pred_midi[0].to(torch.uint16),
-                    None,
-                    int(pred_tpb[0]),
-                    int(pred_len[0]),
-                )
+            wav_data = Song.from_path(str(full_path)).to_wav()  # type: ignore
 
-                wandb.log(
-                    {
-                        "out_audio": wandb.Audio(out.to_wav(), s.sample_rate),
-                        "ground_truth_audio": (
-                            wandb.Audio(audio, s.sample_rate) if epoch == 0 else None
-                        ),
-                    },
-                    step=epoch + 1,
-                )
+            wandb.log(
+                {
+                    "prediction_vs_gt": wandb.Image(
+                        fig, caption=f"Prediction Epoch {epoch+1}"
+                    ),
+                    "ground_truth": (
+                        wandb.Image(gt_fig, caption=f"Ground Truth Epoch {epoch+1}")
+                        if epoch == 0 or epoch == 2
+                        else None
+                    ),
+                    "audio": wandb.Audio(wav_data, sample_rate=s.sample_rate),
+                },
+                step=epoch + 1,
+            )
+            wandb.log_artifact(artifact)
 
-        # Early stopping
+            # Elimino il wav temporaneo
+            plt.close(fig)  # type: ignore
+            plt.close(gt_fig)
+
         if not s.single_element_training:
             if avg_val_loss < best_val_loss - 1e-4:
                 best_val_loss = avg_val_loss
