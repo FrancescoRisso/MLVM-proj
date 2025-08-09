@@ -1,6 +1,8 @@
 import numpy as np
 import numpy.typing as npt
-import pretty_midi
+import pretty_midi  # type: ignore
+import torch
+
 from settings import Settings as s
 
 
@@ -50,7 +52,7 @@ def posteriorgrams_to_midi(
 
     time_per_frame = 1.0 / frame_rate
     min_duration = time_per_frame * 0.99
-    note_events = []
+    note_events: list[tuple[int, float, float]] = []
 
     # Main note extraction loop
     for t in range(num_frames):
@@ -77,20 +79,26 @@ def posteriorgrams_to_midi(
         midi_note = pretty_midi.Note(
             velocity=min(int(velocity), 127), pitch=int(pitch), start=start, end=end
         )
-        instrument.notes.append(midi_note)
-    midi.instruments.append(instrument)
+        instrument.notes.append(midi_note)  # type: ignore
+    midi.instruments.append(instrument)  # type: ignore
 
     return midi
 
 
-def postprocess(yo, yp, yn, audio_length: int, sample_rate: int):
-    yo_np, yp_np, yn_np = [x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)]
+def postprocess(
+    yo: torch.Tensor,
+    yp: torch.Tensor,
+    yn: torch.Tensor,
+    audio_length: int,
+    sample_rate: int,
+):
+    yo_np, yp_np, yn_np = [x.squeeze(0).detach().cpu().numpy() for x in (yo, yp, yn)]  # type: ignore
     duration_sec = audio_length / sample_rate
     frame_rate = sample_rate / s.hop_length
     midi = posteriorgrams_to_midi(
-        yo_np,
-        yp_np,
-        yn_np,
+        yo_np,  # type: ignore
+        yp_np,  # type: ignore
+        yn_np,  # type: ignore
         audio_duration=duration_sec,
         frame_rate=frame_rate,
         debug=False,
