@@ -17,7 +17,7 @@ def train_cmd(args: Namespace):
             if Settings.model == Model.CNN
             else "model_saves/harmonicrnn.pth"
         ),
-        split=Split.SINGLE_AUDIO if Settings.single_element_training else Split.VALIDATION,
+        dataset=Split.SINGLE_AUDIO if Settings.single_element_training else Split.VALIDATION,
     )
 
 
