@@ -129,13 +129,13 @@ class HarmonicCNN(HarmonicNet):
         yo_pred, yp_pred, yn_pred = self.forward(self.__audio_input)
 
         assert isinstance(yo_pred, torch.Tensor)
-        assert isinstance(yp_pred, torch.Tensor) or yp_pred is None
-        assert isinstance(yn_pred, torch.Tensor)
+        assert isinstance(yp_pred, torch.Tensor)
+        assert isinstance(yn_pred, torch.Tensor) or yn_pred is None
 
         self.__output: dict[str, torch.Tensor] = {
             "yo": yo_pred,
-            "yp": yp_pred if yp_pred is not None else yn_pred,
-            "yn": yn_pred,
+            "yp": yp_pred,
+            "yn": yn_pred if yn_pred is not None else yp_pred,
         }
 
     def get_loss(self) -> torch.Tensor:
