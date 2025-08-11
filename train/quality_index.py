@@ -122,10 +122,10 @@ def evaluate_note_prediction(
         print(f"F1 Score: {f1:.4f}")
 
     return {
-        "precision": precision,
-        "recall": recall,
-        "f1_score": f1,
         "TP": true_positives,
         "FP": false_positives,
         "FN": false_negatives,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
     }
