@@ -62,7 +62,7 @@ class Settings:
     pre_trained_model_path: str | None = "model_saves/harmoniccnn.pth"
 
     # if True, the model will be trained on a single element
-    single_element_training = True
+    single_element_training = False
 
     # postprocessing settings
     threshold = 0.6  # threshold for postprocessing

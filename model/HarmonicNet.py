@@ -110,10 +110,23 @@ class HarmonicNet(Abstract, nn.Module):
         gt_batch = self.get_network_input()
 
         for gt, pred in zip(gt_batch, out_batch):
+            gt_yo = gt.yo
+            gt_yp = gt.yp
+            gt_yn = (gt.yn if gt.yn is not None else gt.yp)
+
+            gt_yo_squeezed = torch.zeros_like(pred.yo)
+            gt_yp_squeezed = torch.zeros_like(pred.yp)
+            gt_yn_squeezed = torch.zeros_like(pred.yn) if pred.yn is not None else torch.zeros_like(pred.yp)
+
+            for i in range(gt_yo.shape[0]):
+                gt_yo_squeezed += gt_yo[i,:,:]
+                gt_yp_squeezed += gt_yp[i,:,:]
+                gt_yn_squeezed += gt_yn[i,:,:]
+
             eval = evaluate_note_prediction(
-                gt.yo.unsqueeze(0),
-                gt.yp.unsqueeze(0),
-                (gt.yn if gt.yn is not None else gt.yp).unsqueeze(0),
+                gt_yo_squeezed.unsqueeze(0),
+                gt_yp_squeezed.unsqueeze(0),
+                gt_yn_squeezed.unsqueeze(0),
                 pred.yo.unsqueeze(0),
                 pred.yp.unsqueeze(0),
                 (pred.yn if pred.yn is not None else pred.yp).unsqueeze(0),
