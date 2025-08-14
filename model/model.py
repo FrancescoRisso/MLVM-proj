@@ -171,12 +171,16 @@ class HarmonicCNN(HarmonicNet):
     def __get_midi_and_images(
         self, images: dict[str, torch.Tensor]
     ) -> list[HarmonicNetOutput]:
+        if images["yo"].dim() == 4:
+            for k in images:
+                images[k] = images[k].squeeze(1 if images[k].shape[1] == 1 else 0)
+
         return [
             HarmonicNetOutput(
                 posteriorgrams_to_midi(
-                    to_numpy(yo[0]),  # type: ignore
-                    to_numpy(yp[0]),  # type: ignore
-                    to_numpy(yn[0] if yn is not None else yp[0]),  # type: ignore
+                    to_numpy(yo),  # type: ignore
+                    to_numpy(yp),  # type: ignore
+                    to_numpy(yn if yn is not None else yp),  # type: ignore
                     velocity=100,  # type: ignore
                     frame_rate=s.sample_rate / s.hop_length,
                 ),
