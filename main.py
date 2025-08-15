@@ -4,14 +4,21 @@ from argparse import Namespace
 
 from dataloader.split import Split
 from settings import Model, Settings
+from train.extremes import evaluate_and_plot_extremes
 from train.inference import inference
 from train.train import train
-from train.utils import evaluate_and_plot_extremes
 
 
 def train_cmd(args: Namespace):
     train()
-    evaluate_and_plot_extremes("model_saves/harmoniccnn.pth", Split.SINGLE_AUDIO)
+    evaluate_and_plot_extremes(
+        (
+            "model_saves/harmoniccnn.pth"
+            if Settings.model == Model.CNN
+            else "model_saves/harmonicrnn.pth"
+        ),
+        dataset=Split.SINGLE_AUDIO if Settings.single_element_training else Split.VALIDATION,
+    )
 
 
 def process_cmd(args: Namespace):

@@ -1,4 +1,5 @@
 import torch
+
 from settings import Settings as s
 
 
@@ -6,9 +7,9 @@ def check_note_quality(
     notes_tensor: torch.Tensor,
     num_pitches: int,
     num_frames: int,
-) -> list:
-    
-    notes = []
+) -> list[tuple[int, int, int]]:
+
+    notes: list[tuple[int, int, int]] = []
     for pitch in range(num_pitches):
         active = False
         onset = 0
@@ -33,18 +34,26 @@ def evaluate_note_prediction(
     yo_pred: torch.Tensor,
     yp_pred: torch.Tensor,
     yn_pred: torch.Tensor | None,
-    onset_tol: float = 0.05,         # seconds (50 ms)
-    note_tol: float = 0.2,           # 20%        
+    onset_tol: float = 0.05,  # seconds (50 ms)
+    note_tol: float = 0.2,  # 20%
     debug: bool = False,
-) -> dict:
-    
+) -> dict[str, float]:
+
     yo_gt = torch.sigmoid(yo_gt).squeeze(1).squeeze(0)
     yp_gt = torch.sigmoid(yp_gt).squeeze(1).squeeze(0)
-    yn_gt = torch.sigmoid(yn_gt).squeeze(1).squeeze(0) if s.remove_yn == False else yp_gt
+    yn_gt = (
+        torch.sigmoid(yn_gt).squeeze(1).squeeze(0)
+        if (s.remove_yn == False and yn_gt is not None)
+        else yp_gt
+    )
 
     yo_pred = torch.sigmoid(yo_pred).squeeze(1).squeeze(0)
     yp_pred = torch.sigmoid(yp_pred).squeeze(1).squeeze(0)
-    yn_pred = torch.sigmoid(yn_pred).squeeze(1).squeeze(0) if s.remove_yn == False else yp_pred
+    yn_pred = (
+        torch.sigmoid(yn_pred).squeeze(1).squeeze(0)
+        if (s.remove_yn == False and yn_pred is not None)
+        else yp_pred
+    )
 
     notes_correct = yn_gt > s.threshold
     notes_predicted = yn_pred > s.threshold
@@ -113,6 +122,9 @@ def evaluate_note_prediction(
         print(f"F1 Score: {f1:.4f}")
 
     return {
+        "TP": true_positives,
+        "FP": false_positives,
+        "FN": false_negatives,
         "precision": precision,
         "recall": recall,
         "f1_score": f1,
