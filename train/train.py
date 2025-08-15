@@ -195,7 +195,7 @@ def train():
             model.exec_forward()
             out = model.get_network_output()[0]
 
-            (midis_np, tempos, ticks_per_beats, nums_messages), _ = fixed_sample
+            (midis_np, tempos, ticks_per_beats, nums_messages), audio_gt = fixed_sample
             midi = Song.from_np(
                 to_numpy(midis_np).astype(np.uint16), tempos, ticks_per_beats, nums_messages  # type: ignore
             ).get_midi()
@@ -230,6 +230,7 @@ def train():
             artifact.add_file(str(full_path), name=midi_filename)  # type: ignore
 
             wav_data = Song.from_path(str(full_path)).to_wav()  # type: ignore
+            print(audio_gt)
 
             wandb.log(
                 {
@@ -242,6 +243,11 @@ def train():
                         else None
                     ),
                     "audio": wandb.Audio(wav_data, sample_rate=s.sample_rate),
+                    "ground_truth_audio": (
+                        wandb.Audio(audio_gt, sample_rate=s.sample_rate)
+                        if epoch == 0 or epoch == 2
+                        else None
+                    ),
                 },
                 step=epoch + 1,
             )
