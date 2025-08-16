@@ -160,7 +160,7 @@ def plot_harmoniccnn_outputs(
     cmap: str = "magma",
 ):
     n_plots = 2 + (1 if yn is not None else 0)
-    fig, axs = plt.subplots(n_plots, 1, figsize=(6, 4 * n_plots))  # type: ignore
+    fig, axs = plt.subplots(1, n_plots, figsize=(6*n_plots, 4))  # type: ignore
 
     ims: list[Any] = []
 
@@ -316,7 +316,7 @@ def save_plot(
     )
     cqt_mag = librosa.amplitude_to_db(np.abs(cqt), ref=np.max)  # type: ignore
 
-    fig, axs = plt.subplots(3, 1, figsize=(12, 15))  # type: ignore
+    fig, axs = plt.subplots(1, 3, figsize=(15, 12))  # type: ignore
 
     # 1) Plot CQT
     img1 = librosa.display.specshow(  # type: ignore
