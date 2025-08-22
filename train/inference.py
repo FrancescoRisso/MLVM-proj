@@ -24,7 +24,9 @@ def inference(
     if s.pre_trained_model_path is not None:
         model.load_state_dict(torch.load(s.pre_trained_model_path, map_location=device))
         print(f"Loaded pre-trained model from {s.pre_trained_model_path}")
-
+    else:
+        raise ValueError("No pre-trained model path specified in settings.")
+    
     model.eval()
 
     audio_np, _ = librosa.load(  # type: ignore

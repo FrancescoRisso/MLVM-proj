@@ -117,6 +117,10 @@ def train():
                 s.pre_trained_model_path if s.pre_trained_model_path else None
             ),
             "single_element_training": s.single_element_training,
+            "positive_weight_yp": s.positive_weight_yp,
+            "positive_weight_yo": s.positive_weight_yo,
+            "positive_weight_yn": s.positive_weight_yn,
+            "remove_yn": s.remove_yn,
         },
     )
 
