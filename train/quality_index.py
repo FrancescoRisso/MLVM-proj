@@ -1,6 +1,5 @@
 import torch
 from settings import Settings as s
-import numpy as np
 
 def extract_notes_from_tensor(tensor: torch.Tensor) -> list[tuple[int, int, int]]:
     """
@@ -38,7 +37,7 @@ def extract_notes_from_tensor(tensor: torch.Tensor) -> list[tuple[int, int, int]
 def evaluate_note_prediction(
     yp_gt: torch.Tensor,
     yp_pred: torch.Tensor,
-    onset_tol_frames: int = 2,  # tolleranza in frame (non più in secondi)
+    onset_tol_frames: int = 2,  # tolleranza in frame
     duration_tol_ratio: float = 0.2,  # 20% di tolleranza sulla durata
     debug: bool = False,
 ) -> dict[str, float]:
@@ -48,7 +47,6 @@ def evaluate_note_prediction(
     Args:
         yp_gt: tensore ground truth (pitch x time)
         yp_pred: tensore predetto (pitch x time)
-        threshold: soglia per binarizzazione
         onset_tol_frames: tolleranza onset in frame
         duration_tol_ratio: tolleranza durata (0.2 = 20%)
         debug: se True stampa informazioni di debug
@@ -57,7 +55,6 @@ def evaluate_note_prediction(
         dict con metriche di valutazione
     """
     threshold = s.threshold  # soglia per binarizzazione
-    # Assicurati che i tensori abbiano le stesse dimensioni
     assert yp_gt.shape == yp_pred.shape, f"Shape mismatch: GT {yp_gt.shape}, Pred {yp_pred.shape}"
     
     # Binarizza i tensori
