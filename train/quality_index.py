@@ -1,125 +1,140 @@
 import torch
-
 from settings import Settings as s
+import numpy as np
 
+def extract_notes_from_tensor(tensor: torch.Tensor) -> list[tuple[int, int, int]]:
+    """
+    Estrae note da un tensore binario (pitch x time)
+    Restituisce lista di tuple (pitch, onset_frame, offset_frame)
+    """
+    if tensor.dim() == 3:
+        tensor = tensor.squeeze(0)  # da [1, 88, 87] a [88, 87]
 
-def check_note_quality(
-    notes_tensor: torch.Tensor,
-    num_pitches: int,
-    num_frames: int,
-) -> list[tuple[int, int, int]]:
-
-    notes: list[tuple[int, int, int]] = []
+    notes = []
+    num_pitches, num_frames = tensor.shape
+    threshold = s.threshold  # soglia per considerare attiva una nota
     for pitch in range(num_pitches):
+        # Trova dove le note iniziano e finiscono
         active = False
-        onset = 0
-        for t in range(num_frames):
-            if notes_tensor[pitch, t] and not active:
-                onset = t
+        onset = -1
+        
+        for frame in range(num_frames):
+            if tensor[pitch, frame] >= threshold and not active:
+                # Inizio nuova nota
                 active = True
-            elif not notes_tensor[pitch, t] and active:
-                offset = t
+                onset = frame
+            elif tensor[pitch, frame] < threshold and active:
+                # Fine nota
                 active = False
-                notes.append((pitch, onset, offset))
+                notes.append((pitch, onset, frame))
+                onset = -1
+        
+        # Se una nota è ancora attiva alla fine
         if active:
-            notes.append((pitch, onset, num_frames))
-
+            notes.append((pitch, onset, num_frames - 1))
+    
     return notes
 
-
 def evaluate_note_prediction(
-    yo_gt: torch.Tensor,
     yp_gt: torch.Tensor,
-    yn_gt: torch.Tensor | None,
-    yo_pred: torch.Tensor,
     yp_pred: torch.Tensor,
-    yn_pred: torch.Tensor | None,
-    onset_tol: float = 0.05,  # seconds (50 ms)
-    note_tol: float = 0.2,  # 20%
+    onset_tol_frames: int = 2,  # tolleranza in frame (non più in secondi)
+    duration_tol_ratio: float = 0.2,  # 20% di tolleranza sulla durata
     debug: bool = False,
 ) -> dict[str, float]:
-
-    yo_gt = torch.sigmoid(yo_gt).squeeze(1).squeeze(0)
-    yp_gt = torch.sigmoid(yp_gt).squeeze(1).squeeze(0)
-    yn_gt = (
-        torch.sigmoid(yn_gt).squeeze(1).squeeze(0)
-        if (s.remove_yn == False and yn_gt is not None)
-        else yp_gt
-    )
-
-    yo_pred = torch.sigmoid(yo_pred).squeeze(1).squeeze(0)
-    yp_pred = torch.sigmoid(yp_pred).squeeze(1).squeeze(0)
-    yn_pred = (
-        torch.sigmoid(yn_pred).squeeze(1).squeeze(0)
-        if (s.remove_yn == False and yn_pred is not None)
-        else yp_pred
-    )
-
-    notes_correct = yn_gt > s.threshold
-    notes_predicted = yn_pred > s.threshold
-    num_pitches, num_frames = yo_gt.shape
-
-    # Time resolution (seconds per frame)
-    time_per_frame = s.hop_length / s.sample_rate
-    onset_tol_frames = int(onset_tol / time_per_frame)
-
+    """
+    Valuta la predizione delle note confrontando con ground truth
+    
+    Args:
+        yp_gt: tensore ground truth (pitch x time)
+        yp_pred: tensore predetto (pitch x time)
+        threshold: soglia per binarizzazione
+        onset_tol_frames: tolleranza onset in frame
+        duration_tol_ratio: tolleranza durata (0.2 = 20%)
+        debug: se True stampa informazioni di debug
+    
+    Returns:
+        dict con metriche di valutazione
+    """
+    threshold = s.threshold  # soglia per binarizzazione
+    # Assicurati che i tensori abbiano le stesse dimensioni
+    assert yp_gt.shape == yp_pred.shape, f"Shape mismatch: GT {yp_gt.shape}, Pred {yp_pred.shape}"
+    
+    # Binarizza i tensori
+    gt_binary = (yp_gt >= threshold).float()
+    pred_binary = (yp_pred >= threshold).float()
+    
+    # Estrai note da GT e predizione
+    gt_notes = extract_notes_from_tensor(gt_binary)
+    pred_notes = extract_notes_from_tensor(pred_binary)
+    
+    if debug:
+        print(f"Note GT trovate: {len(gt_notes)}")
+        print(f"Note Pred trovate: {len(pred_notes)}")
+        if gt_notes:
+            print(f"Esempio nota GT: pitch={gt_notes[0][0]}, onset={gt_notes[0][1]}, offset={gt_notes[0][2]}")
+        if pred_notes:
+            print(f"Esempio nota Pred: pitch={pred_notes[0][0]}, onset={pred_notes[0][1]}, offset={pred_notes[0][2]}")
+    
+    # Inizializza contatori
     true_positives = 0
-    false_positives = 0
-    false_negatives = 0
-
-    # Get predicted notes: (pitch, onset_frame, offset_frame)
-    pred_notes = check_note_quality(notes_predicted, num_pitches, num_frames)
-
-    # Get ground truth notes: (pitch, onset_frame, offset_frame)
-    gt_notes = check_note_quality(notes_correct, num_pitches, num_frames)
-
-    # Match predicted notes with ground truth notes
-    matched_gt_flags = [False] * len(gt_notes)
-
-    for pred_pitch, pred_onset, pred_offset in pred_notes:
-        matched = False
+    matched_gt_indices = set()
+    matched_pred_indices = set()
+    
+    # Per ogni nota predetta, cerca match nel GT
+    for pred_idx, (pred_pitch, pred_onset, pred_offset) in enumerate(pred_notes):
         pred_duration = pred_offset - pred_onset
-
-        for i, (gt_pitch, gt_onset, gt_offset) in enumerate(gt_notes):
-            if matched_gt_flags[i]:
-                continue
-
-            gt_duration = gt_offset - gt_onset
-
-            # Check pitch match
+        
+        for gt_idx, (gt_pitch, gt_onset, gt_offset) in enumerate(gt_notes):
+            if gt_idx in matched_gt_indices:
+                continue  # GT già matchato
+                
             if pred_pitch != gt_pitch:
+                continue  # Pitch diverso
+                
+            gt_duration = gt_offset - gt_onset
+            
+            # Check onset match (entro tolleranza)
+            onset_diff = abs(pred_onset - gt_onset)
+            if onset_diff > onset_tol_frames:
                 continue
-
-            # Check onset match
-            if abs(pred_onset - gt_onset) > onset_tol_frames:
+                
+            # Check duration match (entro tolleranza percentuale)
+            duration_diff = abs(pred_duration - gt_duration)
+            max_duration = max(pred_duration, gt_duration, 1)  # evita divisione per zero
+            if duration_diff > duration_tol_ratio * max_duration:
                 continue
-
-            # Check duration match
-            if abs(pred_duration - gt_duration) > note_tol * gt_duration:
-                continue
-
-            matched = True
-            matched_gt_flags[i] = True
+                
+            # Match trovato!
             true_positives += 1
+            matched_gt_indices.add(gt_idx)
+            matched_pred_indices.add(pred_idx)
             break
-
-        if not matched:
-            false_positives += 1
-
-    false_negatives = len(gt_notes) - sum(matched_gt_flags)
-
-    # Return metrics (Adding a small epsilon to avoid division by zero)
+    
+    # Calcola metriche
+    false_positives = len(pred_notes) - len(matched_pred_indices)
+    false_negatives = len(gt_notes) - len(matched_gt_indices)
+    
     precision = true_positives / (true_positives + false_positives + 1e-9)
     recall = true_positives / (true_positives + false_negatives + 1e-9)
     f1 = 2 * precision * recall / (precision + recall + 1e-9)
-
+    
+    # Accuratezza per nota (percentuale di note corrette)
+    note_accuracy = true_positives / len(gt_notes) if gt_notes else 0
+    
     if debug:
-        print(f"True Positives: {true_positives}")
-        print(f"False Positives: {false_positives}")
-        print(f"False Negatives: {false_negatives}")
+        print(f"\n=== RISULTATI VALUTAZIONE ===")
+        print(f"Note totali GT: {len(gt_notes)}")
+        print(f"Note totali Predette: {len(pred_notes)}")
+        print(f"True Positives (note corrette): {true_positives}")
+        print(f"False Positives (note extra): {false_positives}")
+        print(f"False Negatives (note mancanti): {false_negatives}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall: {recall:.4f}")
         print(f"F1 Score: {f1:.4f}")
+        print(f"Note Accuracy: {note_accuracy:.4f}")
+        print(f"Note corrette: {true_positives}/{len(gt_notes)}")
+    
 
     return {
         "TP": true_positives,

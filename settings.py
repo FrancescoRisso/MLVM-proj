@@ -53,16 +53,16 @@ class Settings:
     learning_rate = 1e-3
     label_smoothing = 0.0
     weighted = True
-    positive_weight_yp = 0.55
+    positive_weight_yp = 0.1
     positive_weight_yo = 0.90
-    positive_weight_yn = 0.5
+    positive_weight_yn = 0.1
     save_model = True
     
     # path to a pre-trained model, if any
-    pre_trained_model_path: str | None = "model_saves/harmoniccnn.pth"
-
+    pre_trained_model_path: str | None = None 
     # if True, the model will be trained on a single element
     single_element_training = False
+    
 
     # postprocessing settings
     threshold = 0.6  # threshold for postprocessing

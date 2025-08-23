@@ -111,12 +111,8 @@ class HarmonicNet(Abstract, nn.Module):
 
         for gt, pred in zip(gt_batch, out_batch):
             eval = evaluate_note_prediction(
-                gt.yo.unsqueeze(0),
                 gt.yp.unsqueeze(0),
-                (gt.yn if gt.yn is not None else gt.yp).unsqueeze(0),
-                pred.yo.unsqueeze(0),
                 pred.yp.unsqueeze(0),
-                (pred.yn if pred.yn is not None else pred.yp).unsqueeze(0),
             )
 
             stats.append(Statistics(int(eval["TP"]), int(eval["FP"]), int(eval["FN"])))
