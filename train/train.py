@@ -245,7 +245,6 @@ def train():
             artifact.add_file(str(full_path), name=midi_filename)  # type: ignore
 
             wav_data = Song.from_path(str(full_path)).to_wav()  # type: ignore
-            print(audio_gt)
 
             wandb.log(
                 {
