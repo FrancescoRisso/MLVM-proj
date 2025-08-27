@@ -67,13 +67,9 @@ def evaluate_note_prediction(
     false_positives = 0
     false_negatives = 0
 
-    # Get predicted notes: (pitch, onset_frame, offset_frame)
+    # --- NOTE LEVEL ---
     pred_notes = check_note_quality(notes_predicted, num_pitches, num_frames)
-
-    # Get ground truth notes: (pitch, onset_frame, offset_frame)
     gt_notes = check_note_quality(notes_correct, num_pitches, num_frames)
-
-    # Match predicted notes with ground truth notes
     matched_gt_flags = [False] * len(gt_notes)
 
     for pred_pitch, pred_onset, pred_offset in pred_notes:
@@ -86,15 +82,12 @@ def evaluate_note_prediction(
 
             gt_duration = gt_offset - gt_onset
 
-            # Check pitch match
             if pred_pitch != gt_pitch:
                 continue
 
-            # Check onset match
             if abs(pred_onset - gt_onset) > onset_tol_frames:
                 continue
 
-            # Check duration match
             if abs(pred_duration - gt_duration) > note_tol * gt_duration:
                 continue
 
@@ -108,23 +101,41 @@ def evaluate_note_prediction(
 
     false_negatives = len(gt_notes) - sum(matched_gt_flags)
 
-    # Return metrics (Adding a small epsilon to avoid division by zero)
+    # --- BIN LEVEL ---
+    TP_bins = torch.sum(notes_predicted & notes_correct).item()
+    FP_bins = torch.sum(notes_predicted & ~notes_correct).item()
+    FN_bins = torch.sum(~notes_predicted & notes_correct).item()
+
+    # --- METRICS ---
     precision = true_positives / (true_positives + false_positives + 1e-9)
     recall = true_positives / (true_positives + false_negatives + 1e-9)
     f1 = 2 * precision * recall / (precision + recall + 1e-9)
 
+    precision_bins = TP_bins / (TP_bins + FP_bins + 1e-9)
+    recall_bins = TP_bins / (TP_bins + FN_bins + 1e-9)
+    f1_bins = 2 * precision_bins * recall_bins / (precision_bins + recall_bins + 1e-9)
+
     if debug:
+        print(f"NOTE-LEVEL ---")
         print(f"True Positives: {true_positives}")
         print(f"False Positives: {false_positives}")
         print(f"False Negatives: {false_negatives}")
         print(f"Precision: {precision:.4f}")
         print(f"Recall: {recall:.4f}")
         print(f"F1 Score: {f1:.4f}")
+        print(f"BIN-LEVEL ---")
+        print(f"TP_bins: {TP_bins}, FP_bins: {FP_bins}, FN_bins: {FN_bins}")
+        print(f"Precision_bins: {precision_bins:.4f}")
+        print(f"Recall_bins: {recall_bins:.4f}")
+        print(f"F1_bins: {f1_bins:.4f}")
 
     return {
         "TP": true_positives,
         "FP": false_positives,
         "FN": false_negatives,
+        "TP_bins": TP_bins,
+        "FP_bins": FP_bins,
+        "FN_bins": FN_bins,
         "precision": precision,
         "recall": recall,
         "f1_score": f1,

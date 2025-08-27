@@ -52,7 +52,7 @@ def train_one_epoch(
     running_loss = 0.0
     total_batches = len(dataloader)
 
-    stats = Statistics(0, 0, 0)
+    stats = Statistics(0, 0, 0, 0, 0, 0)
 
     for _, batch in tqdm(
         enumerate(dataloader), total=total_batches, desc=f"Epoch {epoch+1}/{s.epochs}"
@@ -63,7 +63,6 @@ def train_one_epoch(
         model.exec_forward()
         total_loss = model.get_loss()
         stats += model.get_batch_statistics()
-
         total_loss.backward()  # type: ignore
         optimizer.step()
         cur_loss = total_loss.item()  # type: ignore
@@ -83,6 +82,9 @@ def train_one_epoch(
         "f1": stats.f1,
         "precision": stats.precision,
         "recall": stats.recall,
+        "f1_bins": stats.f1_bins,
+        "precision_bins": stats.precision_bins,
+        "recall_bins": stats.recall_bins,
     }
 
 
@@ -117,6 +119,10 @@ def train():
                 s.pre_trained_model_path if s.pre_trained_model_path else None
             ),
             "single_element_training": s.single_element_training,
+            "positive_weight_yp": s.positive_weight_yp,
+            "positive_weight_yo": s.positive_weight_yo,
+            "positive_weight_yn": s.positive_weight_yn,
+            "label_smoothing": s.label_smoothing,
         },
     )
 
@@ -135,7 +141,7 @@ def train():
     train_loader = DataLoader(train_dataset, batch_size=s.batch_size, shuffle=True)
 
     best_val_loss = float("inf")
-    patience = 5
+    patience = 8
     patience_counter = 0
 
     for epoch in range(s.epochs):
@@ -165,6 +171,9 @@ def train():
                     "metrics_TRAIN/precision/train_yp": train_metrics["precision"],
                     "metrics_TRAIN/recall/train_yp": train_metrics["recall"],
                     "metrics_TRAIN/f1/train_yp": train_metrics["f1"],
+                    "metrics_TRAIN_BINS/precision_bins/train_yp": train_metrics["precision_bins"],
+                    "metrics_TRAIN_BINS/recall_bins/train_yp": train_metrics["recall_bins"],
+                    "metrics_TRAIN_BINS/f1_bins/train_yp": train_metrics["f1_bins"],
                 }
             )
         else:
@@ -178,6 +187,12 @@ def train():
                     "metrics_VAL/precision/train_yp": val_metrics["precision"],
                     "metrics_VAL/recall/train_yp": val_metrics["recall"],
                     "metrics_VAL/f1/train_yp": val_metrics["f1"],
+                    "metrics_TRAIN_BINS/precision_bins/train_yp": train_metrics["precision_bins"],
+                    "metrics_TRAIN_BINS/recall_bins/train_yp": train_metrics["recall_bins"],
+                    "metrics_TRAIN_BINS/f1_bins/train_yp": train_metrics["f1_bins"],
+                    "metrics_VAL_BINS/precision_bins/train_yp": val_metrics["precision_bins"],
+                    "metrics_VAL_BINS/recall_bins/train_yp": val_metrics["recall_bins"],
+                    "metrics_VAL_BINS/f1_bins/train_yp": val_metrics["f1_bins"],
                 },
                 step=epoch + 1,
             )
@@ -253,7 +268,6 @@ def train():
             )
             wandb.log_artifact(artifact)
 
-            # Elimino il wav temporaneo (? Lo stiamo facendo?)
             plt.close(fig)  # type: ignore
             plt.close(gt_fig)
 
@@ -265,11 +279,14 @@ def train():
                 best_model_path = os.path.join(session_dir, "best_model.pth")
                 torch.save(model.state_dict(), best_model_path)
                 print(f"Best model saved to {best_model_path}")
+
             else:
                 patience_counter += 1
                 print(f"No improvement. Patience: {patience_counter}/{patience}")
+
                 if patience_counter >= patience:
                     print(
-                        f"Early stopping at epoch {epoch+1}. Best val loss: {best_val_loss:.4f}"
+                        f"Early stopping at epoch {epoch+1}. "
+                        f"Best val loss: {best_val_loss:.4f}"
                     )
                     break
