@@ -25,6 +25,9 @@ class Statistics(NamedTuple):
     TP: int
     FP: int
     FN: int
+    TP_bins: int
+    FP_bins: int
+    FN_bins: int
 
     @property
     def precision(self) -> float:
@@ -39,10 +42,30 @@ class Statistics(NamedTuple):
         p, r = self.precision, self.recall
         return 2 * p * r / (p + r + 1e-9)
 
-    def __add__(self, other: object) -> Statistics:
-        assert isinstance(other, Statistics)
-        return Statistics(self.TP + other.TP, self.FP + other.FP, self.FN + other.FN)
+    @property
+    def precision_bins(self) -> float:
+        return self.TP_bins / (self.TP_bins + self.FP_bins + 1e-9)
 
+    @property
+    def recall_bins(self) -> float:
+        return self.TP_bins / (self.TP_bins + self.FN_bins + 1e-9)
+
+    @property
+    def f1_bins(self) -> float:
+        p, r = self.precision_bins, self.recall_bins
+        return 2 * p * r / (p + r + 1e-9)
+
+    def __add__(self, other: object) -> "Statistics":
+        if not isinstance(other, Statistics):
+            return NotImplemented
+        return Statistics(
+            self.TP + other.TP,
+            self.FP + other.FP,
+            self.FN + other.FN,
+            self.TP_bins + other.TP_bins,
+            self.FP_bins + other.FP_bins,
+            self.FN_bins + other.FN_bins,
+        )
 
 class HarmonicNet(Abstract, nn.Module):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
@@ -119,12 +142,13 @@ class HarmonicNet(Abstract, nn.Module):
                 (pred.yn if pred.yn is not None else pred.yp).unsqueeze(0),
             )
 
-            stats.append(Statistics(int(eval["TP"]), int(eval["FP"]), int(eval["FN"])))
+            stats.append(Statistics(int(eval["TP"]), int(eval["FP"]), int(eval["FN"]),
+                                    int(eval["TP_bins"]), int(eval["FP_bins"]), int(eval["FN_bins"])))
 
         return stats
 
     def get_batch_statistics(self) -> Statistics:
-        cumul = Statistics(0, 0, 0)
+        cumul = Statistics(0, 0, 0, 0, 0, 0)
         for stat in self.get_separate_statistics():
             cumul += stat
         return cumul
