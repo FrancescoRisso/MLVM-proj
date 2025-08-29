@@ -47,7 +47,7 @@ def harmoniccnn_loss(
     yp_true: torch.Tensor,
     yn_logits: torch.Tensor | None = None,
     yn_true: torch.Tensor | None = None,
-    label_smoothing: float = 0.0,
+    label_smoothing: float = s.label_smoothing,
     weighted: bool = False,
 ) -> dict[str, torch.Tensor]:
 
