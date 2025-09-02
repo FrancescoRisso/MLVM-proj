@@ -13,7 +13,7 @@ def train_cmd(args: Namespace):
     train()
     evaluate_and_plot_extremes(
         (
-            "model_saves/harmoniccnn.pth"
+            "model_saves/best_model.pth"
             if Settings.model == Model.CNN
             else "model_saves/harmonicrnn.pth"
         ),

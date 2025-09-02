@@ -34,7 +34,7 @@ def evaluate(
     running_loss = 0.0
     total_batches = len(test_loader)
 
-    stats = Statistics(0, 0, 0)
+    stats = Statistics(0, 0, 0, 0, 0, 0)
 
     with torch.no_grad():
         for _, batch in tqdm(enumerate(test_loader), total=total_batches):
@@ -49,4 +49,7 @@ def evaluate(
         "f1": stats.f1,
         "precision": stats.precision,
         "recall": stats.recall,
+        "f1_bins": stats.f1_bins,
+        "precision_bins": stats.precision_bins,
+        "recall_bins": stats.recall_bins,
     }
