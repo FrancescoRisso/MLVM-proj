@@ -22,7 +22,7 @@ class Settings:
     test_folder = "test"
 
     # dataset downloading settings
-    generate_audio_on_download = True  # see note below
+    generate_audio_on_download = False  # see note below
     metadata_files_to_keep = [
         "LICENSE",
         "README",
@@ -50,17 +50,17 @@ class Settings:
     # training settings
     epochs = 10000
     batch_size = 30
-    learning_rate = 1e-4
-    label_smoothing = 0.0
+    learning_rate = 0.005
+    label_smoothing = 0.001
     weighted = True
     patience = 10
-    positive_weight_yp = 0.60
-    positive_weight_yo = 0.90
-    positive_weight_yn = 0.60
+    positive_weight_yp = 0.5
+    positive_weight_yo = 0.9
+    positive_weight_yn = 0.5
     save_model = True
     
     # path to a pre-trained model, if any
-    pre_trained_model_path: str | None = "model_saves/best_model.pth"
+    pre_trained_model_path: str | None = None # "model_saves/best_model.pth"
 
     # if True, the model will be trained on a single element
     single_element_training = False
@@ -69,10 +69,10 @@ class Settings:
     threshold = 0.6  # threshold for postprocessing
 
     # RNN settings
-    hidden_size = 100000  # must be even
+    hidden_size = 9000  # must be even
     encoder_num_layers = 1
     decoder_num_layers = 1
-    notes_messages_loss_multiplier = 1
+    notes_messages_loss_multiplier = 100
 
 
 """
