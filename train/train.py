@@ -123,6 +123,9 @@ def train():
             "positive_weight_yo": s.positive_weight_yo,
             "positive_weight_yn": s.positive_weight_yn,
             "label_smoothing": s.label_smoothing,
+            "patience": s.patience,
+            "weighted": s.weighted,
+            "threshold": s.threshold,
         },
     )
 
