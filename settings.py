@@ -53,6 +53,7 @@ class Settings:
     learning_rate = 1e-4
     label_smoothing = 0.0
     weighted = True
+    patience = 10
     positive_weight_yp = 0.60
     positive_weight_yo = 0.90
     positive_weight_yn = 0.60

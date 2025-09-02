@@ -141,7 +141,7 @@ def train():
     train_loader = DataLoader(train_dataset, batch_size=s.batch_size, shuffle=True)
 
     best_val_loss = float("inf")
-    patience = 8
+    patience = s.patience
     patience_counter = 0
 
     for epoch in range(s.epochs):
