@@ -20,7 +20,12 @@ class DataSet(
         ]
     ]
 ):
-    def __init__(self, split: Split, duration: None | int | tuple[int, int]):
+    def __init__(
+        self,
+        split: Split,
+        duration: None | int | tuple[int, int],
+        max_items: int | None = None,
+    ):
         """
         Creates a new dataset for a specific split.
 
@@ -39,6 +44,8 @@ class DataSet(
                 max, then select a random crop of that duration (max is
                 cropped to the song length, and the option is equivalent to
                 None if also min is greater than the song length)
+        - max_items: if set, the maximum number of audios present in the
+            created dataset
         """
         self.__check_sw_dependencies()
 
@@ -55,6 +62,9 @@ class DataSet(
         self.__data = [
             os.path.join(folder_path, file) for file in os.listdir(folder_path)
         ]
+
+        if max_items is not None:
+            self.__data = self.__data[:max_items]
 
         if Settings.always_same_portion and self.__duration is not None:
             self.__cuts: list[tuple[float, float] | None] | None = []
