@@ -8,7 +8,6 @@ from typing import Iterable
 import librosa
 import numpy as np
 import numpy.typing as npt
-import torch
 from mido import MidiFile, MidiTrack, second2tick  # type: ignore
 from mido.messages import BaseMessage, Message  # type: ignore
 from mido.midifiles.meta import MetaMessage  # type: ignore
@@ -38,7 +37,11 @@ TMP_VALID_FIELDS_PER_MSG_TYPE[PROGRAM_CHANGE] = (1, 1, 1, 0, 0, 0)
 TMP_VALID_FIELDS_PER_MSG_TYPE[TIME_SIGNATURE] = (1, 1, 1, 1, 1, 1)
 # fmt: on
 
-VALID_FIELDS_PER_MSG_TYPE = torch.tensor(TMP_VALID_FIELDS_PER_MSG_TYPE)
+
+def VALID_FIELDS_PER_MSG_TYPE():
+    import torch
+
+    return torch.tensor(TMP_VALID_FIELDS_PER_MSG_TYPE)
 
 
 class Song:

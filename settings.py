@@ -1,8 +1,6 @@
 import os
 from enum import Enum
 
-import torch
-
 # automatic stuff, the actual settings are in the class Settings below
 cur_dir = os.path.dirname(__file__)
 audio_font_folder = os.path.join(cur_dir, "audio-fonts")
@@ -43,9 +41,14 @@ class Settings:
     hop_length = 512
     n_bins = 88
     harmonic_shifts = [-12, 0, 12]
-    device = torch.device("cpu")
     model: Model = Model.CNN
     remove_yn = False  # if True, the model will not predict the note matrix
+
+    @property
+    def device(self):
+        import torch
+
+        return torch.device("cpu")
 
     # training settings
     epochs = 10000
@@ -58,9 +61,9 @@ class Settings:
     positive_weight_yo = 0.9
     positive_weight_yn = 0.5
     save_model = True
-    
+
     # path to a pre-trained model, if any
-    pre_trained_model_path: str | None = None # "model_saves/best_model.pth"
+    pre_trained_model_path: str | None = None  # "model_saves/best_model.pth"
 
     # if True, the model will be trained on a single element
     single_element_training = False

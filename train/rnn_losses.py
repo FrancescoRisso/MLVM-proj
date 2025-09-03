@@ -58,7 +58,7 @@ def np_midi_loss(
     fields_meaningful = torch.zeros(size=target_midi.shape, dtype=torch.bool)
     for msgtype in range(1, 8):
         fields_meaningful[torch.where(target_midi[:, :, 1] == msgtype)] = (
-            VALID_FIELDS_PER_MSG_TYPE[msgtype]
+            VALID_FIELDS_PER_MSG_TYPE()[msgtype]
         )
     fields_meaningful[:, :, :2] = False  # tick and message type already accounted for
     for i in range(6):

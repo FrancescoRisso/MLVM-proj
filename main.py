@@ -2,14 +2,14 @@ import argparse
 import os
 from argparse import Namespace
 
-from dataloader.split import Split
 from settings import Model, Settings
-from train.extremes import evaluate_and_plot_extremes
-from train.inference import inference
-from train.train import train
 
 
 def train_cmd(args: Namespace):
+    from dataloader.split import Split
+    from train.extremes import evaluate_and_plot_extremes
+    from train.train import train
+
     train()
     evaluate_and_plot_extremes(
         (
@@ -17,11 +17,15 @@ def train_cmd(args: Namespace):
             if Settings.model == Model.CNN
             else "model_saves/harmonicrnn.pth"
         ),
-        dataset=Split.SINGLE_AUDIO if Settings.single_element_training else Split.VALIDATION,
+        dataset=(
+            Split.SINGLE_AUDIO if Settings.single_element_training else Split.VALIDATION
+        ),
     )
 
 
 def process_cmd(args: Namespace):
+    from train.inference import inference
+
     input_file = args.input
     output_file = args.output or os.path.splitext(input_file)[0] + ".midi"
 
