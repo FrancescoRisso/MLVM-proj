@@ -17,7 +17,7 @@ def inference(
     output_path: str = "trial_audio/output.mid",
 ) -> pretty_midi.PrettyMIDI | MidiFile | str:
 
-    device = s.device
+    device = torch.device(s.device)
     print(f"Evaluating on {device}")
 
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)

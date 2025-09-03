@@ -93,7 +93,7 @@ def train():
     random.seed(seed)
     print("Seed was:", seed)
 
-    device = s.device
+    device = torch.device(s.device)
     print(f"Training on {device}")
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

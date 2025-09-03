@@ -43,12 +43,7 @@ class Settings:
     harmonic_shifts = [-12, 0, 12]
     model: Model = Model.CNN
     remove_yn = False  # if True, the model will not predict the note matrix
-
-    @property
-    def device(self):
-        import torch
-
-        return torch.device("cpu")
+    device: str = "cpu"  # "cpu" or "cuda"
 
     # training settings
     epochs = 10000

@@ -16,7 +16,7 @@ from train.utils import save_plot
 def evaluate_and_plot_extremes(
     model_path: str, dataset: Split, output_dir: str = "eval_plots", top_k: int = 5
 ) -> None:
-    device = s.device
+    device = torch.device(s.device)
     print(f"Evaluating model {model_path} for top/bottom F1 samples on {device}")
 
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)
