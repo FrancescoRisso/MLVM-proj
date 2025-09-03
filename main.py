@@ -41,6 +41,21 @@ def process_cmd(args: Namespace):
     print(f'Midi saved as "{output_file}"')
 
 
+def convert_cmd(args: Namespace):
+    import soundfile as sf  # type: ignore
+
+    from dataloader.Song import Song
+
+    midi_file = args.midi_file
+    output_file = args.output or os.path.splitext(midi_file)[0] + ".wav"
+    Settings.audio_font_path = args.sound_font or Settings.audio_font_path
+    Settings.seconds = None  # type: ignore
+
+    sf.write(output_file, Song.from_path(midi_file).to_wav(), Settings.sample_rate)  # type: ignore
+
+    print(f'Audio saved as "{output_file}"')
+
+
 def main():
     parser = argparse.ArgumentParser(description="Neural Network Audio-to-MIDI CLI")
     subparsers = parser.add_subparsers(title="commands", dest="command")
@@ -60,6 +75,22 @@ def main():
     )
     process_parser.add_argument("-p", "--model-path", help="Path to trained model")
     process_parser.set_defaults(func=process_cmd)
+
+    # convert command
+    convert_parser = subparsers.add_parser(
+        "convert", help="Render an existing MIDI file into audio"
+    )
+    convert_parser.add_argument("midi_file", help="Path to the existing MIDI file")
+    convert_parser.add_argument(
+        "-o", "--output", help="Output audio path (defaults to .wav alongside input)"
+    )
+    convert_parser.add_argument(
+        "-s",
+        "--sound-font",
+        help="Path to the sound font to use (defaults to settings.py)",
+    )
+    convert_parser.set_defaults(func=convert_cmd)
+
 
     args = parser.parse_args()
 
