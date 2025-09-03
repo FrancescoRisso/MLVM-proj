@@ -56,6 +56,23 @@ def convert_cmd(args: Namespace):
     print(f'Audio saved as "{output_file}"')
 
 
+def test_cmd(args: Namespace):
+    from train.test import test
+
+    num_tests = args.num_tests
+    save_dir = args.save_dir
+    verbose = args.verbose
+
+    if args.model is not None:
+        assert args.model in ["RNN", "CNN"], f"Invalid model {args.model}"
+        Settings.model = Model.CNN if args.model == "CNN" else Model.RNN
+
+    if args.model_path is not None:
+        Settings.pre_trained_model_path = args.model_path
+
+    test(num_tests, save_dir, verbose)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Neural Network Audio-to-MIDI CLI")
     subparsers = parser.add_subparsers(title="commands", dest="command")
@@ -91,6 +108,32 @@ def main():
     )
     convert_parser.set_defaults(func=convert_cmd)
 
+    # test command
+    test_parser = subparsers.add_parser(
+        "test", help="Evaluate model on test set with precision/recall/F1"
+    )
+    test_parser.add_argument(
+        "-n",
+        "--num-tests",
+        type=int,
+        help="Number of test examples to run (all if omitted or too large)",
+    )
+    test_parser.add_argument(
+        "-d",
+        "--save-dir",
+        help="Directory to save ground truth and outputs (won't save if omitted). Its current content will be erased, if it exists",
+    )
+    test_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Print stats for each test individually",
+    )
+    test_parser.add_argument(
+        "-m", "--model", choices=["RNN", "CNN"], help="Model type to use"
+    )
+    test_parser.add_argument("-p", "--model-path", help="Path to trained model")
+    test_parser.set_defaults(func=test_cmd)
 
     args = parser.parse_args()
 
