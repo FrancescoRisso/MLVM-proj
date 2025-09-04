@@ -191,5 +191,4 @@ artifacts/
 trial_audio/
 
 # eval plots
-eval_plots/
-
+# eval_plots/
