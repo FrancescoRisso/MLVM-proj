@@ -181,7 +181,7 @@ data_1/
 audio-fonts/*
 
 # model saves
-model_saves/
+# model_saves/
 
 # wandb
 wandb/
