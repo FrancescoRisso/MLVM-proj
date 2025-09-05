@@ -1,0 +1,10 @@
+In order to obtain this results we utilised for each audio file the respective treshold values:
+
+Mozart_No.6 	--->	0.95
+Happy		--->	0.76
+Jingle		--->	0.67
+
+
+
+
+In the eval_plots foleder there are some example of good and bad prediction made by the neural network.
