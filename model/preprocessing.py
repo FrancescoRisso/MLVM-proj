@@ -67,11 +67,11 @@ def preprocess(y: torch.Tensor) -> torch.Tensor:
         )
         stacked_tensor = harmonic_stacking(cqt_tensor, Settings.harmonic_shifts)
         input_tensor = (
-            torch.tensor(stacked_tensor).float().to(Settings.device)
+            torch.tensor(stacked_tensor).float().to(torch.device(Settings.device))
         )  # Add batch dimension
         batch.append(input_tensor)
 
     # Stack the batch and move to device
-    stacked_batch = torch.stack(batch, dim=0).to(Settings.device)
+    stacked_batch = torch.stack(batch, dim=0).to(torch.device(Settings.device))
 
     return stacked_batch

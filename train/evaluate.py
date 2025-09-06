@@ -15,7 +15,7 @@ def evaluate(
     model_path: str | None, dataset: Split
 ) -> tuple[float | torch.Tensor, dict[str, float]]:
 
-    device = s.device
+    device = torch.device(s.device)
     print(f"Evaluating on {device}")
 
     model = (HarmonicCNN() if s.model == Model.CNN else HarmonicRNN()).to(device)

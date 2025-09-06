@@ -25,7 +25,7 @@ class HarmonicRNN(HarmonicNet):
             num_layers=Settings.encoder_num_layers,
             batch_first=True,
             bidirectional=True,
-            device=Settings.device,
+            device=torch.device(Settings.device),
         )
 
         self.__decoder = nn.GRU(
@@ -33,25 +33,25 @@ class HarmonicRNN(HarmonicNet):
             hidden_size=Settings.hidden_size,
             num_layers=Settings.decoder_num_layers,
             batch_first=True,
-            device=Settings.device,
+            device=torch.device(Settings.device),
         )
 
         self.__linear_output = nn.Linear(
             in_features=Settings.hidden_size,
             out_features=6,
-            device=Settings.device,
+            device=torch.device(Settings.device),
         )
 
         self.__num_msg_generator = nn.Linear(
             in_features=Settings.hidden_size,
             out_features=1,
-            device=Settings.device,
+            device=torch.device(Settings.device),
         )
 
         self.__ticks_per_beat_generator = nn.Linear(
             in_features=Settings.hidden_size,
             out_features=1,
-            device=Settings.device,
+            device=torch.device(Settings.device),
         )
 
     def forward(
