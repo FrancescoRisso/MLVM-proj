@@ -58,83 +58,97 @@ MLVM-proj/
 
 ## Main Folders and Files Description
 
-- ```main.py```: Entry point of the project; can be used to run or test main functionalities.
-- ```dataloader```: Contains scripts for dataset management, MIDI/audio conversion, and data splitting.
-- ```eval_plots```: Stores evaluation plots (best/worst predictions) generated during experiments.
-- ```model```: Implements the main neural network architectures and preprocessing/postprocessing utilities.
-- ```model_rnn```: Contains RNN-based model implementation.
-- ```model_saves```: Stores saved model checkpoints and weights.
-- ```resources```: Stores the audios and auxiliary materials used for testing the trained model not in the dataset.
-- ```train```: Training, evaluation, inference, and utility scripts for model development and testing.
+-   `main.py`: Entry point of the project; can be used to run or test main functionalities.
+-   `dataloader`: Contains scripts for dataset management, MIDI/audio conversion, and data splitting.
+-   `eval_plots`: Stores evaluation plots (best/worst predictions) generated during experiments.
+-   `model`: Implements the main neural network architectures and preprocessing/postprocessing utilities.
+-   `model_rnn`: Contains RNN-based model implementation.
+-   `model_saves`: Stores saved model checkpoints and weights.
+-   `resources`: Stores the audios and auxiliary materials used for testing the trained model not in the dataset.
+-   `train`: Training, evaluation, inference, and utility scripts for model development and testing.
 
 ## Setup
 
-1. **Install dependencies:**
-   ```powershell
-   pip install -r requirements.txt
-   ```
+1. **(Optional) Create and activate a virtual environment:**
 
-2. **(Optional) Create and activate a virtual environment:**
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
+    ```powershell
+    python -m venv .venv
+    .\.venv\Scripts\Activate.ps1	# Windows
+    source .venv\bin\activate		# Linux
+    ```
+
+2. **Install dependencies:**
+
+    ```powershell
+    pip install -r requirements.txt
+    ```
 
 3. **Download and place SoundFont files:**
 
-   The `audio-fonts` folder is not included in the repository. Download the required `.sf2` files separately and place them in the `audio-fonts/` folder. It is possible to find them in the materials folder that we have loaded together with the report. In particular, you will find:
-   - `Piano.sf2`
-   - `Guitar.sf2`
+    The `audio-fonts` folder is not included in the repository. Download the required `.sf2` files separately and place them in the `audio-fonts/` folder. It is possible to find them in the materials folder that we have loaded together with the report. In particular, you will find:
+
+    - `Piano.sf2`
+    - `Guitar.sf2`
 
 4. **Run the code:**
     ```powershell
-   python main.py [<CLI_COMMAND>]
+    python main.py [<CLI_COMMAND>]
     ```
 
 ## CLI Commands
 
-- **Help command:**
-  ```powershell
-  python main.py [<CLI_COMMAND>] -h
-  ```
-  or
-  ```powershell
-  python main.py [<CLI_COMMAND>] --help
-  ```
+-   **Help command:**
 
-- **Train the model:**
-  ```powershell
-  python main.py train [-h]
-  ```
+    ```powershell
+    python main.py [<CLI_COMMAND>] -h
+    ```
 
-- **Transform audio into MIDI:**
-  ```powershell
-  python main.py process [-h] -i INPUT [-o OUTPUT] [-m {RNN,CNN}] [-p MODEL_PATH]
-  ```
+    or
 
-  where 
-  - ```INPUT``` is the input audio file path
-  - ```OUTPUT``` is the output MIDI path
-  - ```CNN``` or ```RNN``` is the model type to use
-  - ```MODEL_PATH``` is the path to the desired trained model
+    ```powershell
+    python main.py [<CLI_COMMAND>] --help
+    ```
 
-- **Render an existing MIDI file into audio:**
-  ```powershell
-  python main.py convert [-h] [-o OUTPUT] [-s SOUND_FONT] midi_file
-  ```
+-   **Train the model:**
 
-  where
-  - ```OUTPUT``` is the output audio path
-  - ```SOUND_FONT``` is the path th the sound font to use (defaults to ```settings.py```)
+    ```powershell
+    python main.py train [-h]
+    ```
 
-- **Evaluate the model on the test set with precision/recall/F1:**
-  ```powershell
-  python main.py test [-h] [-n NUM_TESTS] [-d SAVE_DIR] [-v] [-m {RNN,CNN}] [-p MODEL_PATH]
-  ```
+-   **Transform audio into MIDI with our model:**
 
-  where
-  - ```NUM_TESTS``` is the number of text examples to run (all if omitted or too large)
-  - ```SAVE_DIR``` is the directory where to save ground truth and outputs (won't save if omitted). Its current content will be erased, if it exists
-  - ```-v```/```--verbose``` prints stats for each test individually
-  - ```CNN``` or ```RNN``` is the model type to use
-  - ```MODEL_PATH``` is the path to the desired trained model
+    ```powershell
+    python main.py process [-h] -i INPUT [-o OUTPUT] [-m {RNN,CNN}] [-p MODEL_PATH]
+    ```
+
+    where
+
+    -   `INPUT` is the input audio file path
+    -   `OUTPUT` is the output MIDI path (defaults to the same name of the input, with `.midi` exension)
+    -   `CNN` or `RNN` is the model type to use (defaults to `settings.py`)
+    -   `MODEL_PATH` is the path to the desired trained model (defaults to `settings.py`)
+
+-   **Render an existing MIDI file into audio:**
+
+    ```powershell
+    python main.py convert [-h] [-o OUTPUT] [-s SOUND_FONT] midi_file
+    ```
+
+    where
+
+    -   `OUTPUT` is the output audio path (defaults to the same name of the input, with `.midi` exension)
+    -   `SOUND_FONT` is the path th the sound font to use (defaults to `settings.py`)
+
+-   **Evaluate the model on the test set with precision/recall/F1:**
+
+    ```powershell
+    python main.py test [-h] [-n NUM_TESTS] [-d SAVE_DIR] [-v] [-m {RNN,CNN}] [-p MODEL_PATH]
+    ```
+
+    where
+
+    -   `NUM_TESTS` is the number of text examples to run (all if omitted or too large)
+    -   `SAVE_DIR` is the directory where to save ground truth and outputs (won't save anything if omitted). Its current content will be erased, if it exists
+    -   `-v`/`--verbose` prints stats for each test individually (on top of the cumulative stats)
+    -   `CNN` or `RNN` is the model type to use (defaults to `settings.py`)
+    -   `MODEL_PATH` is the path to the desired trained model (defaults to `settings.py`)
