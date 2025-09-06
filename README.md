@@ -124,7 +124,7 @@ MLVM-proj/
     where
 
     -   `INPUT` is the input audio file path
-    -   `OUTPUT` is the output MIDI path (defaults to the same name of the input, with `.midi` exension)
+    -   `OUTPUT` is the output MIDI path (defaults to the same name of the input, with `.midi` extension)
     -   `CNN` or `RNN` is the model type to use (defaults to `settings.py`)
     -   `MODEL_PATH` is the path to the desired trained model (defaults to `settings.py`)
 
@@ -136,7 +136,7 @@ MLVM-proj/
 
     where
 
-    -   `OUTPUT` is the output audio path (defaults to the same name of the input, with `.midi` exension)
+    -   `OUTPUT` is the output audio path (defaults to the same name of the input, with `.midi` extension)
     -   `SOUND_FONT` is the path th the sound font to use (defaults to `settings.py`)
 
 -   **Evaluate the model on the test set with precision/recall/F1:**
