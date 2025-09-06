@@ -58,7 +58,7 @@ class Settings:
     save_model = True
 
     # path to a pre-trained model, if any
-    pre_trained_model_path: str | None = None  # "model_saves/best_model.pth"
+    pre_trained_model_path: str | None = "model_saves/best_model.pth"
 
     # if True, the model will be trained on a single element
     single_element_training = False
