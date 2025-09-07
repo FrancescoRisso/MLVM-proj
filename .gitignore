@@ -181,7 +181,7 @@ data_1/
 audio-fonts/*
 
 # model saves
-model_saves/
+# model_saves/
 
 # wandb
 wandb/
@@ -191,5 +191,4 @@ artifacts/
 trial_audio/
 
 # eval plots
-eval_plots/
-
+# eval_plots/
