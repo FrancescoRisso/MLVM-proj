@@ -1,0 +1,82 @@
+name: Build and Release Executables
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: "Enter the version (e.g., v1.0.0)"
+                required: true
+
+env:
+    APP_NAME: audio-to-midi
+
+jobs:
+    build:
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+
+        runs-on: ${{ matrix.os }}
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                  python-version: "3.x"
+
+            - name: Install dependencies
+              run: pip install -r requirements.txt
+
+            - name: Build executable
+              run: pyinstaller --onefile main.py --name app
+
+            - name: Rename executable
+              run: |
+                  if [[ "$RUNNER_OS" == "Windows" ]]; then
+                    mv dist/app.exe dist/$APP_NAME-windows.exe
+                  elif [[ "$RUNNER_OS" == "Linux" ]]; then
+                    mv dist/app dist/$APP_NAME-linux
+                  elif [[ "$RUNNER_OS" == "macOS" ]]; then
+                    mv dist/app dist/$APP_NAME-macos
+                  fi
+              shell: bash
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ env.APP_NAME }}-${{ matrix.os }}
+                  path: dist/*
+
+    release:
+        needs: build
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Download all build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  merge-multiple: true
+
+            - name: List downloaded files (Debugging)
+              run: ls -R
+
+            - name: Make files executable (Linux/Mac)
+              run: chmod +x $APP_NAME-* || true
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: ${{ github.event.inputs.version }}
+                  name: Release ${{ github.event.inputs.version }}
+                  draft: false
+                  prerelease: false
+                  files: |
+                      ${{ env.APP_NAME }}-linux
+                      ${{ env.APP_NAME }}-windows.exe
+                      ${{ env.APP_NAME }}-macos
